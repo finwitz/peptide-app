@@ -2,6 +2,7 @@
   "expo": {
     "name": "PeptideCalc",
     "slug": "peptide-calc",
+    "owner": "finwitz",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -40,6 +41,18 @@
           "color": "#3b82f6"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "acc706b8-174c-40e6-ad87-f219263c236f"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/acc706b8-174c-40e6-ad87-f219263c236f"
+    }
   }
 }
