@@ -14,10 +14,14 @@ const CATEGORY_ICONS: Record<string, string> = {
   'Cognitive': 'brain-outline',
   'Immune': 'shield-checkmark-outline',
   'Longevity': 'hourglass-outline',
-  'Tanning': 'sunny-outline',
   'Sexual Health': 'heart-outline',
-  'Metabolic': 'flame-outline',
+  'Fat Loss': 'flame-outline',
+  'Metabolic': 'analytics-outline',
   'Performance': 'fitness-outline',
+  'Sleep': 'moon-outline',
+  'Skin': 'sparkles-outline',
+  'Hair': 'cut-outline',
+  'Reproductive': 'medkit-outline',
 };
 
 export default function LibraryScreen() {

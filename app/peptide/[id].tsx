@@ -90,6 +90,28 @@ export default function PeptideDetailScreen() {
         )}
       </View>
 
+      {/* Cycling */}
+      {peptide.cycle_info && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="sync-outline" size={18} color={colors.accent} />
+            <Text style={styles.cardTitle}>Cycling Protocol</Text>
+          </View>
+          <Text style={styles.cardBody}>{peptide.cycle_info}</Text>
+        </View>
+      )}
+
+      {/* Side Effects */}
+      {peptide.side_effects && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+            <Text style={styles.cardTitle}>Side Effects</Text>
+          </View>
+          <Text style={styles.cardBody}>{peptide.side_effects}</Text>
+        </View>
+      )}
+
       {/* Storage */}
       {peptide.storage_info && (
         <View style={styles.card}>

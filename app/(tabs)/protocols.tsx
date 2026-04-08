@@ -5,13 +5,18 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
-import { getActiveProtocols, getAllProtocols, deleteProtocol, getLastDoseForProtocol, type Protocol, type DoseLog } from '../../lib/database';
+import {
+  getActiveProtocols, getAllProtocols, deleteProtocol, getLastDoseForProtocol,
+  getExpiringSoonInventory, getLowStockInventory,
+  type Protocol, type DoseLog, type InventoryItem,
+} from '../../lib/database';
 
 export default function ProtocolsScreen() {
   const colors = useThemeColors();
   const router = useRouter();
   const [protocols, setProtocols] = useState<(Protocol & { lastDose?: DoseLog | null })[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const [alerts, setAlerts] = useState<{ expiring: InventoryItem[]; lowStock: InventoryItem[] }>({ expiring: [], lowStock: [] });
 
   const loadProtocols = useCallback(async () => {
     const protos = showAll ? await getAllProtocols() : await getActiveProtocols();
@@ -22,6 +27,12 @@ export default function ProtocolsScreen() {
       }))
     );
     setProtocols(withLastDose);
+
+    const [expiring, lowStock] = await Promise.all([
+      getExpiringSoonInventory(7),
+      getLowStockInventory(0.2),
+    ]);
+    setAlerts({ expiring, lowStock });
   }, [showAll]);
 
   useFocusEffect(useCallback(() => { loadProtocols(); }, [loadProtocols]));
@@ -75,14 +86,42 @@ export default function ProtocolsScreen() {
           <Ionicons name="chevron-down" size={16} color={colors.primary} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => router.push('/protocol/new')}
-        >
-          <Ionicons name="add" size={20} color="#ffffff" />
-          <Text style={styles.addBtnText}>New</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: colors.accent }]}
+            onPress={() => router.push('/inventory')}
+          >
+            <Ionicons name="flask-outline" size={18} color="#ffffff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => router.push('/protocol/new')}
+          >
+            <Ionicons name="add" size={20} color="#ffffff" />
+            <Text style={styles.addBtnText}>New</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Inventory Alerts */}
+      {alerts.expiring.length > 0 && (
+        <TouchableOpacity style={styles.alertBanner} onPress={() => router.push('/inventory')}>
+          <Ionicons name="time-outline" size={16} color={colors.warning} />
+          <Text style={styles.alertText}>
+            {alerts.expiring.length} vial{alerts.expiring.length > 1 ? 's' : ''} expiring soon: {alerts.expiring.map(v => v.peptide_name).join(', ')}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.warning} />
+        </TouchableOpacity>
+      )}
+      {alerts.lowStock.length > 0 && (
+        <TouchableOpacity style={[styles.alertBanner, { backgroundColor: colors.dangerLight }]} onPress={() => router.push('/inventory')}>
+          <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
+          <Text style={[styles.alertText, { color: colors.danger }]}>
+            {alerts.lowStock.length} vial{alerts.lowStock.length > 1 ? 's' : ''} running low: {alerts.lowStock.map(v => `${v.peptide_name} (${v.mg_remaining.toFixed(1)}mg)`).join(', ')}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.danger} />
+        </TouchableOpacity>
+      )}
 
       <FlatList
         data={protocols}
@@ -130,6 +169,22 @@ export default function ProtocolsScreen() {
                   </View>
                 )}
               </View>
+
+              {/* End date indicator */}
+              {item.end_date && (() => {
+                const endDate = new Date(item.end_date);
+                const now = new Date();
+                const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                const isExpired = daysLeft <= 0;
+                return (
+                  <View style={[styles.endDateBanner, isExpired ? { backgroundColor: colors.dangerLight } : { backgroundColor: colors.warningLight }]}>
+                    <Ionicons name={isExpired ? 'checkmark-circle' : 'calendar-outline'} size={14} color={isExpired ? colors.danger : colors.warning} />
+                    <Text style={[styles.endDateText, { color: isExpired ? colors.danger : colors.warning }]}>
+                      {isExpired ? 'Cycle complete' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`}
+                    </Text>
+                  </View>
+                );
+              })()}
 
               <View style={styles.cardDetails}>
                 <View style={styles.detailItem}>
@@ -196,6 +251,13 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
     },
     addBtnText: { color: '#ffffff', fontWeight: '600', fontSize: FontSize.sm },
+    alertBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+      marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
+      backgroundColor: colors.warningLight, borderRadius: BorderRadius.md,
+      padding: Spacing.md,
+    },
+    alertText: { flex: 1, fontSize: FontSize.xs, color: colors.warning, fontWeight: '600' },
     listContent: { padding: Spacing.lg, paddingTop: 0 },
     card: {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
@@ -217,6 +279,12 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingHorizontal: Spacing.sm, paddingVertical: 2,
     },
     badgeTextInactive: { fontSize: FontSize.xs, color: colors.textTertiary },
+    endDateBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      borderRadius: BorderRadius.sm, padding: Spacing.xs, paddingHorizontal: Spacing.sm,
+      marginBottom: Spacing.sm,
+    },
+    endDateText: { fontSize: FontSize.xs, fontWeight: '600' },
     cardDetails: { flexDirection: 'row', gap: Spacing.lg, marginBottom: Spacing.md },
     detailItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     detailText: { fontSize: FontSize.sm, color: colors.textSecondary },

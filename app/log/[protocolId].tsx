@@ -8,8 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import {
-  getProtocolById, logDose, getInjectionSites,
-  type Protocol, type InjectionSite,
+  getProtocolById, logDose, getInjectionSites, getInventoryForPeptide,
+  type Protocol, type InjectionSite, type InventoryItem,
 } from '../../lib/database';
 
 type SiteKey = string;
@@ -81,6 +81,8 @@ export default function LogDoseScreen() {
   const [notes, setNotes] = useState('');
   const [sideEffects, setSideEffects] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [vials, setVials] = useState<InventoryItem[]>([]);
+  const [selectedVial, setSelectedVial] = useState<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -93,6 +95,13 @@ export default function LogDoseScreen() {
       const suggested = getSuggestedSite(allSites);
       setSuggestedSite(suggested);
       setSelectedSite(suggested);
+
+      // Load matching inventory vials
+      if (proto) {
+        const inv = await getInventoryForPeptide(proto.peptide_name);
+        setVials(inv);
+        if (inv.length === 1) setSelectedVial(inv[0].id);
+      }
     }
     load();
   }, [protocolId]);
@@ -109,7 +118,7 @@ export default function LogDoseScreen() {
         return;
       }
 
-      await logDose(protocol.id, dose, selectedSite ?? undefined, notes || undefined, sideEffects || undefined);
+      await logDose(protocol.id, dose, selectedSite ?? undefined, notes || undefined, sideEffects || undefined, selectedVial ?? undefined);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (e) {
@@ -158,6 +167,48 @@ export default function LogDoseScreen() {
           />
           <Text style={styles.helperText}>Leave blank to use default dose</Text>
         </View>
+
+        {/* Vial Selection */}
+        {vials.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Deduct from Vial</Text>
+            {vials.map((vial) => {
+              const pct = vial.vial_mg > 0 ? vial.mg_remaining / vial.vial_mg : 0;
+              const isSelected = selectedVial === vial.id;
+              const stockColor = pct > 0.5 ? colors.success : pct > 0.2 ? colors.warning : colors.danger;
+              return (
+                <TouchableOpacity
+                  key={vial.id}
+                  style={[
+                    styles.vialOption,
+                    { borderColor: isSelected ? colors.primary : colors.cardBorder },
+                    isSelected && { backgroundColor: colors.primaryLight },
+                  ]}
+                  onPress={() => setSelectedVial(isSelected ? null : vial.id)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.vialName, isSelected && { color: colors.primary }]}>
+                      {vial.peptide_name} — {vial.vial_mg}mg vial
+                    </Text>
+                    <View style={styles.vialBar}>
+                      <View style={[styles.vialBarFill, { width: `${pct * 100}%`, backgroundColor: stockColor }]} />
+                    </View>
+                    <Text style={styles.vialRemaining}>
+                      {vial.mg_remaining.toFixed(2)}mg remaining
+                      {vial.source ? ` · ${vial.source}` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={22}
+                    color={isSelected ? colors.primary : colors.textTertiary}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+            <Text style={styles.helperText}>Select a vial to auto-deduct this dose from inventory</Text>
+          </View>
+        )}
 
         {/* Injection Site */}
         <View style={styles.card}>
@@ -386,6 +437,18 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     legendDot: { width: 8, height: 8, borderRadius: 4 },
     legendText: { fontSize: FontSize.xs, color: colors.textTertiary },
+    vialOption: {
+      flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+      borderWidth: 1.5, borderRadius: BorderRadius.md,
+      padding: Spacing.md, marginBottom: Spacing.sm,
+    },
+    vialName: { fontSize: FontSize.sm, fontWeight: '600', color: colors.text },
+    vialBar: {
+      height: 4, backgroundColor: colors.border, borderRadius: 2,
+      marginVertical: 4, overflow: 'hidden' as const,
+    },
+    vialBarFill: { height: 4, borderRadius: 2 },
+    vialRemaining: { fontSize: FontSize.xs, color: colors.textTertiary },
     saveBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
       backgroundColor: colors.primary, borderRadius: BorderRadius.lg, padding: Spacing.lg,

@@ -28,12 +28,32 @@ export default function RootLayout() {
           options={{ title: 'Protocol Details' }}
         />
         <Stack.Screen
+          name="protocol/edit"
+          options={{ title: 'Edit Protocol', presentation: 'modal' }}
+        />
+        <Stack.Screen
           name="log/[protocolId]"
           options={{ title: 'Log Dose', presentation: 'modal' }}
         />
         <Stack.Screen
           name="peptide/[id]"
           options={{ title: 'Peptide Info' }}
+        />
+        <Stack.Screen
+          name="protocol/templates"
+          options={{ title: 'Protocol Templates' }}
+        />
+        <Stack.Screen
+          name="protocol/template-detail"
+          options={{ title: 'Template Detail' }}
+        />
+        <Stack.Screen
+          name="inventory/index"
+          options={{ title: 'Inventory' }}
+        />
+        <Stack.Screen
+          name="inventory/add"
+          options={{ title: 'Add Vial', presentation: 'modal' }}
         />
       </Stack>
     </>
