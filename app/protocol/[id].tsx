@@ -5,7 +5,8 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import { useToast } from '../../components/Toast';
 import {
   getProtocolById, getDoseLogsForProtocol, updateProtocol, deleteProtocol,
   getPeptideByName, getProtocolDoseSummary, getActiveProtocols,
@@ -38,6 +39,7 @@ export default function ProtocolDetailScreen() {
   const [summary, setSummary] = useState<{ total_doses: number; first_dose: string | null; last_dose: string | null }>({ total_doses: 0, first_dose: null, last_dose: null });
   const [interactions, setInteractions] = useState<PeptideInteraction[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const toast = useToast();
 
   useFocusEffect(
     useCallback(() => {
@@ -115,8 +117,9 @@ export default function ProtocolDetailScreen() {
       const rems = await getRemindersForProtocol(protocol.id);
       setReminders(rems);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.show({ message: 'Daily reminder set for 9:00 AM', type: 'success' });
     } catch (e) {
-      Alert.alert('Error', 'Failed to create reminder. Please try again.');
+      toast.show({ message: 'Failed to create reminder', type: 'error' });
     }
   };
 
@@ -127,8 +130,9 @@ export default function ProtocolDetailScreen() {
       }
       await deleteReminderDB(rem.id);
       setReminders(prev => prev.filter(r => r.id !== rem.id));
+      toast.show({ message: 'Reminder removed', type: 'info' });
     } catch (e) {
-      Alert.alert('Error', 'Failed to delete reminder.');
+      toast.show({ message: 'Failed to delete reminder', type: 'error' });
     }
   };
 
@@ -387,6 +391,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.lg, marginBottom: Spacing.lg,
+      ...Shadows.sm,
     },
     cardTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text, marginBottom: Spacing.md },
     endBadge: { borderRadius: BorderRadius.full, paddingHorizontal: 6, paddingVertical: 2 },

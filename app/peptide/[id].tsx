@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import AnimatedPressable from '../../components/AnimatedPressable';
 import { getPeptideById, type Peptide } from '../../lib/database';
 
 export default function PeptideDetailScreen() {
@@ -19,8 +20,9 @@ export default function PeptideDetailScreen() {
 
   if (!peptide) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: colors.textTertiary }}>Loading...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.textTertiary, marginTop: Spacing.sm }}>Loading peptide info...</Text>
       </View>
     );
   }
@@ -134,13 +136,17 @@ export default function PeptideDetailScreen() {
       </View>
 
       {/* Create Protocol */}
-      <TouchableOpacity
+      <AnimatedPressable
         style={styles.createBtn}
         onPress={() => router.push('/protocol/new')}
+        haptic="light"
+        scaleDown={0.97}
+        accessibilityRole="button"
+        accessibilityLabel={`Create protocol with ${peptide.name}`}
       >
         <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
         <Text style={styles.createBtnText}>Create Protocol with {peptide.name}</Text>
-      </TouchableOpacity>
+      </AnimatedPressable>
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -166,6 +172,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.lg,
+      ...Shadows.sm,
     },
     factLabel: { fontSize: FontSize.xs, color: colors.textTertiary, marginTop: Spacing.sm },
     factValue: { fontSize: FontSize.md, fontWeight: '700', color: colors.text, marginTop: 2 },
@@ -173,6 +180,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.lg, marginBottom: Spacing.lg,
+      ...Shadows.sm,
     },
     cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
     cardTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text },
@@ -186,6 +194,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     createBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
       backgroundColor: colors.primary, borderRadius: BorderRadius.lg, padding: Spacing.lg,
+      ...Shadows.md,
     },
     createBtnText: { color: '#ffffff', fontSize: FontSize.md, fontWeight: '700' },
   });

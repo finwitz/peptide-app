@@ -1,10 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity, SectionList, Alert,
+  View, Text, StyleSheet, SectionList, Alert,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import * as Haptics from 'expo-haptics';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import AnimatedPressable from '../../components/AnimatedPressable';
+import { useToast } from '../../components/Toast';
 import {
   getActiveProtocols, getRecentDoseLogs, getTodaysDoseCount,
   getDoseLogsByDateRange, getDoseCountByDay,
@@ -25,11 +28,13 @@ type Period = 'today' | '7d' | '30d' | 'all';
 export default function LogScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const toast = useToast();
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [recentLogs, setRecentLogs] = useState<(DoseLog & { peptide_name: string })[]>([]);
   const [todayCount, setTodayCount] = useState(0);
   const [period, setPeriod] = useState<Period>('today');
   const [periodStats, setPeriodStats] = useState<{ totalDoses: number; activeDays: number; totalDays: number }>({ totalDoses: 0, activeDays: 0, totalDays: 0 });
+  const [exporting, setExporting] = useState<string | null>(null);
 
   const getDateRange = (p: Period): { start: string; end: string; days: number } => {
     const now = new Date();
@@ -88,6 +93,19 @@ export default function LogScreen() {
     }, [period])
   );
 
+  const handleExport = async (type: 'csv' | 'json') => {
+    setExporting(type);
+    try {
+      if (type === 'csv') await exportDoseLogsCSV();
+      else await exportProtocolsJSON();
+      toast.show({ message: `${type.toUpperCase()} exported successfully`, type: 'success' });
+    } catch (e) {
+      toast.show({ message: `Export failed — please try again`, type: 'error' });
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const formatTime = (dateStr: string): string => {
     const date = new Date(dateStr);
     const now = new Date();
@@ -144,15 +162,17 @@ export default function LogScreen() {
       {/* Period filter */}
       <View style={styles.filterRow}>
         {(['today', '7d', '30d', 'all'] as Period[]).map((p) => (
-          <TouchableOpacity
+          <AnimatedPressable
             key={p}
             style={[styles.filterBtn, period === p && styles.filterBtnActive]}
             onPress={() => setPeriod(p)}
+            haptic="selection"
+            scaleDown={0.95}
           >
             <Text style={[styles.filterText, period === p && styles.filterTextActive]}>
               {p === 'today' ? 'Today' : p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : 'All'}
             </Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
         ))}
       </View>
 
@@ -190,17 +210,19 @@ export default function LogScreen() {
           <Text style={styles.sectionTitle}>Quick Log</Text>
           <View style={styles.quickGrid}>
             {protocols.map((p) => (
-              <TouchableOpacity
+              <AnimatedPressable
                 key={p.id}
                 style={styles.quickCard}
                 onPress={() => router.push(`/log/${p.id}`)}
+                haptic="light"
+                scaleDown={0.95}
               >
                 <Ionicons name="add-circle" size={24} color={colors.primary} />
                 <Text style={styles.quickName} numberOfLines={1}>{p.peptide_name}</Text>
                 <Text style={styles.quickDose}>
                   {p.dose_mcg >= 1000 ? `${(p.dose_mcg / 1000).toFixed(1)}mg` : `${p.dose_mcg}mcg`}
                 </Text>
-              </TouchableOpacity>
+              </AnimatedPressable>
             ))}
           </View>
         </View>
@@ -216,34 +238,46 @@ export default function LogScreen() {
         )}
         ListFooterComponent={recentLogs.length > 0 ? (
           <View style={styles.exportSection}>
-            <TouchableOpacity
-              style={styles.exportBtn}
-              onPress={async () => {
-                try { await exportDoseLogsCSV(); } catch (e) { Alert.alert('Export Failed', 'Could not export CSV.'); }
-              }}
+            <AnimatedPressable
+              style={[styles.exportBtn, exporting === 'csv' && { opacity: 0.5 }]}
+              onPress={() => handleExport('csv')}
+              disabled={exporting !== null}
+              haptic="light"
+              scaleDown={0.95}
               accessibilityRole="button"
               accessibilityLabel="Export dose logs as CSV"
             >
               <Ionicons name="download-outline" size={16} color={colors.primary} />
-              <Text style={styles.exportBtnText}>Export CSV</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.exportBtn}
-              onPress={async () => {
-                try { await exportProtocolsJSON(); } catch (e) { Alert.alert('Export Failed', 'Could not export JSON.'); }
-              }}
+              <Text style={styles.exportBtnText}>{exporting === 'csv' ? 'Exporting...' : 'Export CSV'}</Text>
+            </AnimatedPressable>
+            <AnimatedPressable
+              style={[styles.exportBtn, exporting === 'json' && { opacity: 0.5 }]}
+              onPress={() => handleExport('json')}
+              disabled={exporting !== null}
+              haptic="light"
+              scaleDown={0.95}
               accessibilityRole="button"
               accessibilityLabel="Export protocols as JSON"
             >
               <Ionicons name="code-download-outline" size={16} color={colors.primary} />
-              <Text style={styles.exportBtnText}>Export JSON</Text>
-            </TouchableOpacity>
+              <Text style={styles.exportBtnText}>{exporting === 'json' ? 'Exporting...' : 'Export JSON'}</Text>
+            </AnimatedPressable>
           </View>
         ) : null}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="document-text-outline" size={40} color={colors.textTertiary} />
-            <Text style={styles.emptyText}>No doses logged{period !== 'all' ? ' in this period' : ' yet'}</Text>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="document-text-outline" size={36} color={colors.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>
+              {period !== 'all' ? 'No doses this period' : 'No doses logged yet'}
+            </Text>
+            <Text style={styles.emptySubtext}>
+              {protocols.length > 0
+                ? 'Use the Quick Log buttons above to record your first dose.'
+                : 'Create a protocol first, then start logging doses here.'
+              }
+            </Text>
           </View>
         }
         renderItem={({ item }) => (
@@ -277,6 +311,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     summaryCard: {
       flexDirection: 'row', backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder, padding: Spacing.xl, marginBottom: Spacing.md,
+      ...Shadows.sm,
     },
     summaryLeft: { flex: 1, alignItems: 'center' },
     summaryRight: { flex: 1, alignItems: 'center' },
@@ -290,7 +325,8 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     filterBtn: {
       flex: 1, paddingVertical: Spacing.sm, borderRadius: BorderRadius.md,
       backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder,
-      alignItems: 'center',
+      alignItems: 'center', minHeight: 40,
+      justifyContent: 'center',
     },
     filterBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
     filterText: { fontSize: FontSize.sm, fontWeight: '600', color: colors.textSecondary },
@@ -300,6 +336,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.lg, marginBottom: Spacing.md,
+      ...Shadows.sm,
     },
     statsGrid: { flex: 1, flexDirection: 'row', gap: Spacing.md },
     statItem: { flex: 1 },
@@ -312,6 +349,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.md, alignItems: 'center', minWidth: 100, flex: 1,
+      ...Shadows.sm,
     },
     quickName: { fontSize: FontSize.sm, fontWeight: '600', color: colors.text, marginTop: 4 },
     quickDose: { fontSize: FontSize.xs, color: colors.textSecondary },
@@ -343,9 +381,20 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       flexDirection: 'row', alignItems: 'center', gap: 4,
       paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
       borderRadius: BorderRadius.full, borderWidth: 1, borderColor: colors.primary,
+      minHeight: 40,
     },
     exportBtnText: { fontSize: FontSize.sm, color: colors.primary, fontWeight: '600' },
-    empty: { alignItems: 'center', paddingTop: 40 },
-    emptyText: { fontSize: FontSize.md, color: colors.textTertiary, marginTop: Spacing.sm },
+    empty: { alignItems: 'center', paddingTop: 40, paddingHorizontal: Spacing.lg },
+    emptyIconWrap: {
+      width: 72, height: 72, borderRadius: 36,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center', justifyContent: 'center',
+      marginBottom: Spacing.md,
+    },
+    emptyTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text },
+    emptySubtext: {
+      fontSize: FontSize.sm, color: colors.textSecondary,
+      textAlign: 'center', marginTop: Spacing.xs, lineHeight: 20,
+    },
   });
 }

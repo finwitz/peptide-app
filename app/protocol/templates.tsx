@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, SectionList, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, SectionList, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import AnimatedPressable from '../../components/AnimatedPressable';
 import { getTemplatesByCategory, type ProtocolTemplate } from '../../lib/protocolTemplates';
 
 export default function TemplatesScreen() {
@@ -25,9 +26,11 @@ export default function TemplatesScreen() {
         </View>
       )}
       renderItem={({ item }) => (
-        <TouchableOpacity
+        <AnimatedPressable
           style={styles.card}
           onPress={() => router.push({ pathname: '/protocol/template-detail', params: { id: item.id } })}
+          haptic="light"
+          scaleDown={0.98}
         >
           <View style={styles.cardTop}>
             <Ionicons name={item.icon as any} size={22} color={colors.primary} />
@@ -47,7 +50,7 @@ export default function TemplatesScreen() {
             <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
           </View>
           <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
-        </TouchableOpacity>
+        </AnimatedPressable>
       )}
     />
   );
@@ -66,6 +69,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.lg, marginBottom: Spacing.sm,
+      ...Shadows.sm,
     },
     cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm },
     cardTitleArea: { flex: 1 },

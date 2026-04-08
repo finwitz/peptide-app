@@ -6,7 +6,8 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import { useToast } from '../../components/Toast';
 import { getProtocolById, updateProtocol, type Protocol } from '../../lib/database';
 import { SYRINGE_TYPES, type SyringeType } from '../../lib/calculations';
 
@@ -26,6 +27,7 @@ export default function EditProtocolScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useThemeColors();
   const router = useRouter();
+  const toast = useToast();
 
   const [protocol, setProtocol] = useState<Protocol | null>(null);
   const [name, setName] = useState('');
@@ -94,9 +96,10 @@ export default function EditProtocolScreen() {
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.show({ message: 'Protocol updated', type: 'success' });
       router.back();
     } catch (e) {
-      Alert.alert('Error', 'Failed to save changes. Please try again.');
+      toast.show({ message: 'Failed to save changes', type: 'error' });
       setIsSaving(false);
     }
   };

@@ -5,7 +5,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import { useToast } from '../../components/Toast';
 import {
   createInventoryItem, searchPeptides, getAllPeptides,
   type Peptide,
@@ -14,6 +15,7 @@ import {
 export default function AddInventoryScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const toast = useToast();
 
   const [peptideQuery, setPeptideQuery] = useState('');
   const [selectedPeptide, setSelectedPeptide] = useState<Peptide | null>(null);
@@ -76,9 +78,10 @@ export default function AddInventoryScreen() {
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.show({ message: `${peptideQuery.trim()} vial added to inventory`, type: 'success' });
       router.back();
     } catch (e) {
-      Alert.alert('Error', 'Failed to save inventory item. Please try again.');
+      toast.show({ message: 'Failed to save — please try again', type: 'error' });
       setIsSaving(false);
     }
   };

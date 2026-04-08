@@ -6,7 +6,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import { useToast } from '../../components/Toast';
 import { createProtocol, getAllPeptides, getActiveProtocols, type Peptide, type Protocol } from '../../lib/database';
 import { SYRINGE_TYPES, type SyringeType } from '../../lib/calculations';
 import { checkNewProtocolInteractions } from '../../lib/interactionChecker';
@@ -28,6 +29,7 @@ const ROUTE_OPTIONS = ['SubQ', 'IM', 'Nasal', 'Oral', 'IV', 'Topical'];
 export default function NewProtocolScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const toast = useToast();
 
   const [peptides, setPeptides] = useState<Peptide[]>([]);
   const [selectedPeptide, setSelectedPeptide] = useState<Peptide | null>(null);
@@ -125,9 +127,10 @@ export default function NewProtocolScreen() {
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.show({ message: `${name || peptideName} created`, type: 'success' });
       router.back();
     } catch (e) {
-      Alert.alert('Error', 'Failed to create protocol. Please try again.');
+      toast.show({ message: 'Failed to create protocol', type: 'error' });
       setIsSaving(false);
     }
   };

@@ -4,7 +4,8 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import AnimatedPressable from '../../components/AnimatedPressable';
 import { getAllPeptides, searchPeptides, type Peptide } from '../../lib/database';
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -103,9 +104,11 @@ export default function LibraryScreen() {
           </View>
         )}
         renderItem={({ item }) => (
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.card}
             onPress={() => router.push(`/peptide/${item.id}`)}
+            haptic="light"
+            scaleDown={0.98}
           >
             <View style={styles.cardMain}>
               <Text style={styles.peptideName}>{item.name}</Text>
@@ -135,7 +138,7 @@ export default function LibraryScreen() {
               )}
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-          </TouchableOpacity>
+          </AnimatedPressable>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>

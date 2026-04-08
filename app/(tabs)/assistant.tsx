@@ -4,7 +4,8 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import AnimatedPressable from '../../components/AnimatedPressable';
 import { processQuery, SUGGESTED_QUERIES, type AssistantResponse } from '../../lib/assistant';
 import { getAllPeptides, type Peptide } from '../../lib/database';
 import AssistantMessage from '../../components/AssistantMessage';
@@ -80,13 +81,15 @@ export default function AssistantScreen() {
             </Text>
             <View style={styles.chips}>
               {SUGGESTED_QUERIES.map((q, i) => (
-                <TouchableOpacity
+                <AnimatedPressable
                   key={i}
                   style={styles.chip}
                   onPress={() => handleSend(q)}
+                  haptic="light"
+                  scaleDown={0.95}
                 >
                   <Text style={styles.chipText}>{q}</Text>
-                </TouchableOpacity>
+                </AnimatedPressable>
               ))}
             </View>
           </View>

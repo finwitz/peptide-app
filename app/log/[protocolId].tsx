@@ -6,7 +6,8 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import { useToast } from '../../components/Toast';
 import {
   getProtocolById, logDose, getInjectionSites, getInventoryForPeptide,
   type Protocol, type InjectionSite, type InventoryItem,
@@ -72,6 +73,7 @@ export default function LogDoseScreen() {
   const { protocolId } = useLocalSearchParams<{ protocolId: string }>();
   const colors = useThemeColors();
   const router = useRouter();
+  const toast = useToast();
 
   const [protocol, setProtocol] = useState<Protocol | null>(null);
   const [sites, setSites] = useState<InjectionSite[]>([]);
@@ -120,9 +122,10 @@ export default function LogDoseScreen() {
 
       await logDose(protocol.id, dose, selectedSite ?? undefined, notes || undefined, sideEffects || undefined, selectedVial ?? undefined);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.show({ message: `${protocol.peptide_name} dose logged`, type: 'success' });
       router.back();
     } catch (e) {
-      Alert.alert('Error', 'Failed to save dose log.');
+      toast.show({ message: 'Failed to log dose', type: 'error' });
       setIsSaving(false);
     }
   };

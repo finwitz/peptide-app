@@ -1,10 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity, Alert,
+  View, Text, FlatList, StyleSheet, Alert, Platform,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import * as Haptics from 'expo-haptics';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
+import AnimatedPressable from '../../components/AnimatedPressable';
 import {
   getActiveProtocols, getAllProtocols, deleteProtocol, getLastDoseForProtocol,
   getExpiringSoonInventory, getLowStockInventory,
@@ -42,6 +44,7 @@ export default function ProtocolsScreen() {
   useFocusEffect(useCallback(() => { loadProtocols(); }, [loadProtocols]));
 
   const handleDelete = (protocol: Protocol) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Delete Protocol',
       `Delete "${protocol.name}"? This will also delete all dose logs for this protocol.`,
@@ -82,53 +85,57 @@ export default function ProtocolsScreen() {
     <View style={styles.container}>
       {/* Header controls */}
       <View style={styles.headerRow}>
-        <TouchableOpacity
+        <AnimatedPressable
           style={styles.filterToggle}
-          onPress={() => setShowAll(!showAll)}
+          onPress={() => { setShowAll(!showAll); Haptics.selectionAsync(); }}
+          haptic="selection"
+          scaleDown={0.95}
         >
           <Text style={styles.filterText}>{showAll ? 'All' : 'Active'}</Text>
           <Ionicons name="chevron-down" size={16} color={colors.primary} />
-        </TouchableOpacity>
+        </AnimatedPressable>
 
         <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-          <TouchableOpacity
+          <AnimatedPressable
             style={[styles.addBtn, { backgroundColor: colors.accent }]}
             onPress={() => router.push('/inventory')}
             accessibilityRole="button"
             accessibilityLabel="View inventory"
+            haptic="light"
           >
             <Ionicons name="flask-outline" size={18} color="#ffffff" />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </AnimatedPressable>
+          <AnimatedPressable
             style={styles.addBtn}
             onPress={() => router.push('/protocol/new')}
             accessibilityRole="button"
             accessibilityLabel="Create new protocol"
+            haptic="light"
           >
             <Ionicons name="add" size={20} color="#ffffff" />
             <Text style={styles.addBtnText}>New</Text>
-          </TouchableOpacity>
+          </AnimatedPressable>
         </View>
       </View>
 
       {/* Inventory Alerts */}
       {alerts.expiring.length > 0 && (
-        <TouchableOpacity style={styles.alertBanner} onPress={() => router.push('/inventory')}>
+        <AnimatedPressable style={styles.alertBanner} onPress={() => router.push('/inventory')} haptic="light">
           <Ionicons name="time-outline" size={16} color={colors.warning} />
           <Text style={styles.alertText}>
             {alerts.expiring.length} vial{alerts.expiring.length > 1 ? 's' : ''} expiring soon: {alerts.expiring.map(v => v.peptide_name).join(', ')}
           </Text>
           <Ionicons name="chevron-forward" size={14} color={colors.warning} />
-        </TouchableOpacity>
+        </AnimatedPressable>
       )}
       {alerts.lowStock.length > 0 && (
-        <TouchableOpacity style={[styles.alertBanner, { backgroundColor: colors.dangerLight }]} onPress={() => router.push('/inventory')}>
+        <AnimatedPressable style={[styles.alertBanner, { backgroundColor: colors.dangerLight }]} onPress={() => router.push('/inventory')} haptic="light">
           <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
           <Text style={[styles.alertText, { color: colors.danger }]}>
             {alerts.lowStock.length} vial{alerts.lowStock.length > 1 ? 's' : ''} running low: {alerts.lowStock.map(v => `${v.peptide_name} (${v.mg_remaining.toFixed(1)}mg)`).join(', ')}
           </Text>
           <Ionicons name="chevron-forward" size={14} color={colors.danger} />
-        </TouchableOpacity>
+        </AnimatedPressable>
       )}
 
       <FlatList
@@ -137,17 +144,31 @@ export default function ProtocolsScreen() {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="flask-outline" size={48} color={colors.textTertiary} />
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="flask-outline" size={40} color={colors.primary} />
+            </View>
             <Text style={styles.emptyTitle}>No Protocols Yet</Text>
             <Text style={styles.emptyText}>
-              Create a protocol to start tracking your doses.
+              Create your first protocol to start tracking doses, set reminders, and monitor adherence.
             </Text>
-            <TouchableOpacity
+            <AnimatedPressable
               style={styles.emptyBtn}
               onPress={() => router.push('/protocol/new')}
+              haptic="light"
+              scaleDown={0.95}
             >
+              <Ionicons name="add-circle" size={20} color="#ffffff" />
               <Text style={styles.emptyBtnText}>Create Protocol</Text>
-            </TouchableOpacity>
+            </AnimatedPressable>
+            <AnimatedPressable
+              style={styles.emptyTemplateBtn}
+              onPress={() => router.push('/protocol/templates')}
+              haptic="light"
+              scaleDown={0.95}
+            >
+              <Ionicons name="copy-outline" size={18} color={colors.primary} />
+              <Text style={styles.emptyTemplateBtnText}>Browse Templates</Text>
+            </AnimatedPressable>
           </View>
         }
         renderItem={({ item }) => {
@@ -155,10 +176,12 @@ export default function ProtocolsScreen() {
           const isOverdue = nextDose === 'Overdue';
 
           return (
-            <TouchableOpacity
+            <AnimatedPressable
               style={styles.card}
               onPress={() => router.push(`/protocol/${item.id}`)}
               onLongPress={() => handleDelete(item)}
+              haptic="light"
+              scaleDown={0.98}
             >
               <View style={styles.cardHeader}>
                 <View style={{ flex: 1 }}>
@@ -221,18 +244,17 @@ export default function ProtocolsScreen() {
 
               {/* Quick log button */}
               {item.is_active && (
-                <TouchableOpacity
+                <AnimatedPressable
                   style={styles.quickLogBtn}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    router.push(`/log/${item.id}`);
-                  }}
+                  onPress={() => router.push(`/log/${item.id}`)}
+                  haptic="selection"
+                  scaleDown={0.98}
                 >
                   <Ionicons name="add-circle" size={18} color={colors.primary} />
                   <Text style={styles.quickLogText}>Log Dose</Text>
-                </TouchableOpacity>
+                </AnimatedPressable>
               )}
-            </TouchableOpacity>
+            </AnimatedPressable>
           );
         }}
       />
@@ -257,6 +279,8 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       flexDirection: 'row', alignItems: 'center', gap: 4,
       backgroundColor: colors.primary, borderRadius: BorderRadius.full,
       paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
+      minHeight: 36,
+      ...Shadows.sm,
     },
     addBtnText: { color: '#ffffff', fontWeight: '600', fontSize: FontSize.sm },
     alertBanner: {
@@ -271,6 +295,7 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.lg, marginBottom: Spacing.md,
+      ...Shadows.sm,
     },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.sm },
     cardTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text },
@@ -299,15 +324,32 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     quickLogBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
       borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.md,
+      minHeight: 44,
     },
     quickLogText: { fontSize: FontSize.sm, color: colors.primary, fontWeight: '600' },
-    empty: { alignItems: 'center', paddingTop: 80 },
-    emptyTitle: { fontSize: FontSize.xl, fontWeight: '700', color: colors.text, marginTop: Spacing.lg },
-    emptyText: { fontSize: FontSize.md, color: colors.textSecondary, marginTop: Spacing.sm, textAlign: 'center' },
+    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: Spacing.xl },
+    emptyIconWrap: {
+      width: 80, height: 80, borderRadius: 40,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center', justifyContent: 'center',
+      marginBottom: Spacing.lg,
+    },
+    emptyTitle: { fontSize: FontSize.xl, fontWeight: '800', color: colors.text },
+    emptyText: {
+      fontSize: FontSize.md, color: colors.textSecondary, marginTop: Spacing.sm,
+      textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.lg,
+    },
     emptyBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
       backgroundColor: colors.primary, borderRadius: BorderRadius.full,
       paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md, marginTop: Spacing.xl,
+      ...Shadows.md,
     },
     emptyBtnText: { color: '#ffffff', fontWeight: '700', fontSize: FontSize.md },
+    emptyTemplateBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+      paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md, marginTop: Spacing.md,
+    },
+    emptyTemplateBtnText: { color: colors.primary, fontWeight: '600', fontSize: FontSize.md },
   });
 }

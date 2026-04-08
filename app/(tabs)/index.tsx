@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
+import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
 import {
   calculateReconstitution, SYRINGE_TYPES, formatSyringeUnits, formatMl,
   type SyringeType, type ReconstitutionResult,
@@ -251,8 +251,9 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.lg, marginBottom: Spacing.lg,
+      ...Shadows.sm,
     },
-    resultCard: { borderColor: colors.primary, borderWidth: 1.5 },
+    resultCard: { borderColor: colors.primary, borderWidth: 1.5, ...Shadows.md },
     cardTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text, marginBottom: Spacing.md },
     inputRow: { flexDirection: 'row', gap: Spacing.md },
     inputGroup: { flex: 1, marginBottom: Spacing.md },

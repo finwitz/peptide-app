@@ -2,13 +2,14 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import { Colors } from '../constants/theme';
+import { ToastProvider } from '../components/Toast';
 
 export default function RootLayout() {
   const scheme = useColorScheme();
   const colors = scheme === 'dark' ? Colors.dark : Colors.light;
 
   return (
-    <>
+    <ToastProvider>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
@@ -56,6 +57,6 @@ export default function RootLayout() {
           options={{ title: 'Add Vial', presentation: 'modal' }}
         />
       </Stack>
-    </>
+    </ToastProvider>
   );
 }
