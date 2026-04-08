@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { getProtocolById, updateProtocol, type Protocol } from '../../lib/database';
 import { SYRINGE_TYPES, type SyringeType } from '../../lib/calculations';
@@ -37,6 +38,7 @@ export default function EditProtocolScreen() {
   const [syringeType, setSyringeType] = useState<SyringeType>('U100');
   const [route, setRoute] = useState('SubQ');
   const [notes, setNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -63,7 +65,7 @@ export default function EditProtocolScreen() {
   }, [id]);
 
   const handleSave = async () => {
-    if (!protocol) return;
+    if (!protocol || isSaving) return;
 
     let doseValue = parseFloat(doseMcg);
     if (isNaN(doseValue) || doseValue <= 0) {
@@ -78,24 +80,32 @@ export default function EditProtocolScreen() {
       return;
     }
 
-    await updateProtocol(protocol.id, {
-      name: name || protocol.name,
-      dose_mcg: doseValue,
-      frequency_days: freq,
-      vial_mg: vialMg ? parseFloat(vialMg) : null,
-      water_ml: waterMl ? parseFloat(waterMl) : null,
-      syringe_type: syringeType,
-      route,
-      notes: notes || null,
-    });
+    setIsSaving(true);
+    try {
+      await updateProtocol(protocol.id, {
+        name: name || protocol.name,
+        dose_mcg: doseValue,
+        frequency_days: freq,
+        vial_mg: vialMg ? parseFloat(vialMg) : null,
+        water_ml: waterMl ? parseFloat(waterMl) : null,
+        syringe_type: syringeType,
+        route,
+        notes: notes || null,
+      });
 
-    router.back();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to save changes. Please try again.');
+      setIsSaving(false);
+    }
   };
 
   if (!protocol) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: colors.textTertiary }}>Loading...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.textTertiary, marginTop: Spacing.sm }}>Loading protocol...</Text>
       </View>
     );
   }
@@ -253,8 +263,17 @@ export default function EditProtocolScreen() {
         </View>
 
         {/* Save */}
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Save Changes</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
+          onPress={handleSave}
+          disabled={isSaving}
+          accessibilityRole="button"
+          accessibilityLabel="Save protocol changes"
+        >
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: Spacing.sm }} />
+          ) : null}
+          <Text style={styles.saveBtnText}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

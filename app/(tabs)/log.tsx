@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity, SectionList,
+  View, Text, FlatList, StyleSheet, TouchableOpacity, SectionList, Alert,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,26 +59,30 @@ export default function LogScreen() {
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const [protos, count] = await Promise.all([
-          getActiveProtocols(),
-          getTodaysDoseCount(),
-        ]);
-        setProtocols(protos);
-        setTodayCount(count);
+        try {
+          const [protos, count] = await Promise.all([
+            getActiveProtocols(),
+            getTodaysDoseCount(),
+          ]);
+          setProtocols(protos);
+          setTodayCount(count);
 
-        const { start, end, days } = getDateRange(period);
-        const [logs, dayCounts] = await Promise.all([
-          period === 'all'
-            ? getRecentDoseLogs(100)
-            : getDoseLogsByDateRange(start, end),
-          getDoseCountByDay(start, end),
-        ]);
-        setRecentLogs(logs);
-        setPeriodStats({
-          totalDoses: logs.length,
-          activeDays: dayCounts.length,
-          totalDays: days,
-        });
+          const { start, end, days } = getDateRange(period);
+          const [logs, dayCounts] = await Promise.all([
+            period === 'all'
+              ? getRecentDoseLogs(100)
+              : getDoseLogsByDateRange(start, end),
+            getDoseCountByDay(start, end),
+          ]);
+          setRecentLogs(logs);
+          setPeriodStats({
+            totalDoses: logs.length,
+            activeDays: dayCounts.length,
+            totalDays: days,
+          });
+        } catch (e) {
+          // Silently handle — data will show on next focus
+        }
       }
       load();
     }, [period])
@@ -212,11 +216,25 @@ export default function LogScreen() {
         )}
         ListFooterComponent={recentLogs.length > 0 ? (
           <View style={styles.exportSection}>
-            <TouchableOpacity style={styles.exportBtn} onPress={exportDoseLogsCSV}>
+            <TouchableOpacity
+              style={styles.exportBtn}
+              onPress={async () => {
+                try { await exportDoseLogsCSV(); } catch (e) { Alert.alert('Export Failed', 'Could not export CSV.'); }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Export dose logs as CSV"
+            >
               <Ionicons name="download-outline" size={16} color={colors.primary} />
               <Text style={styles.exportBtnText}>Export CSV</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.exportBtn} onPress={exportProtocolsJSON}>
+            <TouchableOpacity
+              style={styles.exportBtn}
+              onPress={async () => {
+                try { await exportProtocolsJSON(); } catch (e) { Alert.alert('Export Failed', 'Could not export JSON.'); }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Export protocols as JSON"
+            >
               <Ionicons name="code-download-outline" size={16} color={colors.primary} />
               <Text style={styles.exportBtnText}>Export JSON</Text>
             </TouchableOpacity>

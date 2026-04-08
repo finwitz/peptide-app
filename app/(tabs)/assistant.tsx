@@ -107,6 +107,8 @@ export default function AssistantScreen() {
           style={[styles.sendBtn, !input.trim() && { opacity: 0.4 }]}
           onPress={() => handleSend(input)}
           disabled={!input.trim()}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
         >
           <Ionicons name="send" size={20} color="#ffffff" />
         </TouchableOpacity>

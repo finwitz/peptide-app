@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -129,8 +129,9 @@ export default function LogDoseScreen() {
 
   if (!protocol) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: colors.textTertiary }}>Loading...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.textTertiary, marginTop: Spacing.sm }}>Loading...</Text>
       </View>
     );
   }
@@ -423,8 +424,8 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     siteBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
-      paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-      borderRadius: BorderRadius.md, borderWidth: 1, minWidth: 100,
+      paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
+      borderRadius: BorderRadius.md, borderWidth: 1, minWidth: 100, minHeight: 44,
       backgroundColor: colors.surface,
     },
     siteDot: { width: 8, height: 8, borderRadius: 4 },

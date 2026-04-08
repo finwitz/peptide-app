@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, FlatList,
+  View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import {
   createInventoryItem, searchPeptides, getAllPeptides,
@@ -25,6 +26,7 @@ export default function AddInventoryScreen() {
   const [source, setSource] = useState('');
   const [lotNumber, setLotNumber] = useState('');
   const [notes, setNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (peptideQuery.length > 0 && !selectedPeptide) {
@@ -51,26 +53,34 @@ export default function AddInventoryScreen() {
   const handleSave = async () => {
     const mg = parseFloat(vialMg);
     if (!peptideQuery.trim() || isNaN(mg) || mg <= 0) return;
+    if (isSaving) return;
 
-    const now = new Date().toISOString().split('T')[0];
-    const expDays = parseInt(expirationDays) || 30;
-    const expDate = new Date(Date.now() + expDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    setIsSaving(true);
+    try {
+      const now = new Date().toISOString().split('T')[0];
+      const expDays = parseInt(expirationDays) || 30;
+      const expDate = new Date(Date.now() + expDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    await createInventoryItem({
-      peptide_name: peptideQuery.trim(),
-      peptide_id: selectedPeptide?.id ?? null,
-      vial_mg: mg,
-      mg_remaining: mg,
-      bac_water_ml: bacWaterMl ? parseFloat(bacWaterMl) : null,
-      reconstitution_date: now,
-      expiration_date: expDate,
-      source: source.trim() || null,
-      lot_number: lotNumber.trim() || null,
-      notes: notes.trim() || null,
-      protocol_id: null,
-    });
+      await createInventoryItem({
+        peptide_name: peptideQuery.trim(),
+        peptide_id: selectedPeptide?.id ?? null,
+        vial_mg: mg,
+        mg_remaining: mg,
+        bac_water_ml: bacWaterMl ? parseFloat(bacWaterMl) : null,
+        reconstitution_date: now,
+        expiration_date: expDate,
+        source: source.trim() || null,
+        lot_number: lotNumber.trim() || null,
+        notes: notes.trim() || null,
+        protocol_id: null,
+      });
 
-    router.back();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to save inventory item. Please try again.');
+      setIsSaving(false);
+    }
   };
 
   const isValid = peptideQuery.trim().length > 0 && parseFloat(vialMg) > 0;
@@ -171,12 +181,18 @@ export default function AddInventoryScreen() {
 
       {/* Save */}
       <TouchableOpacity
-        style={[styles.saveBtn, !isValid && styles.saveBtnDisabled]}
+        style={[styles.saveBtn, (!isValid || isSaving) && styles.saveBtnDisabled]}
         onPress={handleSave}
-        disabled={!isValid}
+        disabled={!isValid || isSaving}
+        accessibilityRole="button"
+        accessibilityLabel="Add vial to inventory"
       >
-        <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
-        <Text style={styles.saveBtnText}>Add to Inventory</Text>
+        {isSaving ? (
+          <ActivityIndicator size="small" color="#ffffff" />
+        ) : (
+          <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
+        )}
+        <Text style={styles.saveBtnText}>{isSaving ? 'Saving...' : 'Add to Inventory'}</Text>
       </TouchableOpacity>
 
       <View style={{ height: 40 }} />

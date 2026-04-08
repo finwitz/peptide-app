@@ -17,7 +17,7 @@ export default function InventoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getActiveInventory().then(setItems);
+      getActiveInventory().then(setItems).catch(() => {});
     }, [])
   );
 
@@ -55,7 +55,12 @@ export default function InventoryScreen() {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/inventory/add')}>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => router.push('/inventory/add')}
+            accessibilityRole="button"
+            accessibilityLabel="Add new vial to inventory"
+          >
             <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
             <Text style={styles.addBtnText}>Add Vial</Text>
           </TouchableOpacity>

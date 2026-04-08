@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
@@ -69,7 +70,8 @@ export default function ProtocolDetailScreen() {
   if (!protocol) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: colors.textTertiary }}>Loading...</Text>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.textTertiary, marginTop: Spacing.sm }}>Loading protocol...</Text>
       </View>
     );
   }
@@ -99,26 +101,35 @@ export default function ProtocolDetailScreen() {
   };
 
   const handleAddReminder = async () => {
-    const granted = await requestPermissions();
-    if (!granted) {
-      Alert.alert('Permissions Required', 'Please enable notifications in Settings to set reminders.');
-      return;
+    try {
+      const granted = await requestPermissions();
+      if (!granted) {
+        Alert.alert('Permissions Required', 'Please enable notifications in Settings to set reminders.');
+        return;
+      }
+      // Default to 9:00 AM
+      const hour = 9;
+      const minute = 0;
+      const notifId = await scheduleDailyReminder(protocol.name, protocol.peptide_name, hour, minute);
+      await createReminder(protocol.id, hour, minute, notifId);
+      const rems = await getRemindersForProtocol(protocol.id);
+      setReminders(rems);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to create reminder. Please try again.');
     }
-    // Default to 9:00 AM
-    const hour = 9;
-    const minute = 0;
-    const notifId = await scheduleDailyReminder(protocol.name, protocol.peptide_name, hour, minute);
-    await createReminder(protocol.id, hour, minute, notifId);
-    const rems = await getRemindersForProtocol(protocol.id);
-    setReminders(rems);
   };
 
   const handleDeleteReminder = async (rem: Reminder) => {
-    if (rem.notification_id) {
-      await cancelReminder(rem.notification_id);
+    try {
+      if (rem.notification_id) {
+        await cancelReminder(rem.notification_id);
+      }
+      await deleteReminderDB(rem.id);
+      setReminders(prev => prev.filter(r => r.id !== rem.id));
+    } catch (e) {
+      Alert.alert('Error', 'Failed to delete reminder.');
     }
-    await deleteReminderDB(rem.id);
-    setReminders(prev => prev.filter(r => r.id !== rem.id));
   };
 
   const formatTime = (h: number, m: number) => {
@@ -279,7 +290,12 @@ export default function ProtocolDetailScreen() {
         <View style={styles.card}>
           <View style={styles.reminderHeader}>
             <Text style={styles.cardTitle}>Reminders</Text>
-            <TouchableOpacity onPress={handleAddReminder}>
+            <TouchableOpacity
+              onPress={handleAddReminder}
+              accessibilityRole="button"
+              accessibilityLabel="Add reminder"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="add-circle" size={24} color={colors.primary} />
             </TouchableOpacity>
           </View>
@@ -291,8 +307,13 @@ export default function ProtocolDetailScreen() {
                 <Ionicons name="notifications-outline" size={18} color={colors.accent} />
                 <Text style={styles.reminderTime}>{formatTime(rem.hour, rem.minute)}</Text>
                 <Text style={styles.reminderLabel}>Daily</Text>
-                <TouchableOpacity onPress={() => handleDeleteReminder(rem)}>
-                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                <TouchableOpacity
+                  onPress={() => handleDeleteReminder(rem)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete reminder"
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
                 </TouchableOpacity>
               </View>
             ))

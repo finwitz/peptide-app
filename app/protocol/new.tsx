@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { createProtocol, getAllPeptides, getActiveProtocols, type Peptide, type Protocol } from '../../lib/database';
 import { SYRINGE_TYPES, type SyringeType } from '../../lib/calculations';
@@ -46,6 +47,7 @@ export default function NewProtocolScreen() {
   const [notes, setNotes] = useState('');
   const [activeProtos, setActiveProtos] = useState<Protocol[]>([]);
   const [warnings, setWarnings] = useState<PeptideInteraction[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     getAllPeptides().then(setPeptides);
@@ -85,6 +87,7 @@ export default function NewProtocolScreen() {
   };
 
   const handleSave = async () => {
+    if (isSaving) return;
     const peptideName = selectedPeptide?.name || customPeptideName;
     if (!peptideName.trim()) {
       Alert.alert('Error', 'Please select or enter a peptide name.');
@@ -104,22 +107,29 @@ export default function NewProtocolScreen() {
       return;
     }
 
-    await createProtocol({
-      name: name || `${peptideName} Protocol`,
-      peptide_id: selectedPeptide?.id ?? null,
-      peptide_name: peptideName,
-      dose_mcg: doseValue,
-      frequency_days: freq,
-      vial_mg: vialMg ? parseFloat(vialMg) : null,
-      water_ml: waterMl ? parseFloat(waterMl) : null,
-      syringe_type: syringeType,
-      route,
-      notes: notes || null,
-      start_date: new Date().toISOString().split('T')[0],
-      end_date: null,
-    });
+    setIsSaving(true);
+    try {
+      await createProtocol({
+        name: name || `${peptideName} Protocol`,
+        peptide_id: selectedPeptide?.id ?? null,
+        peptide_name: peptideName,
+        dose_mcg: doseValue,
+        frequency_days: freq,
+        vial_mg: vialMg ? parseFloat(vialMg) : null,
+        water_ml: waterMl ? parseFloat(waterMl) : null,
+        syringe_type: syringeType,
+        route,
+        notes: notes || null,
+        start_date: new Date().toISOString().split('T')[0],
+        end_date: null,
+      });
 
-    router.back();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to create protocol. Please try again.');
+      setIsSaving(false);
+    }
   };
 
   const styles = makeStyles(colors);
@@ -334,8 +344,17 @@ export default function NewProtocolScreen() {
         </View>
 
         {/* Save */}
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Create Protocol</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, isSaving && { opacity: 0.6 }]}
+          onPress={handleSave}
+          disabled={isSaving}
+          accessibilityRole="button"
+          accessibilityLabel="Create protocol"
+        >
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: Spacing.sm }} />
+          ) : null}
+          <Text style={styles.saveBtnText}>{isSaving ? 'Creating...' : 'Create Protocol'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

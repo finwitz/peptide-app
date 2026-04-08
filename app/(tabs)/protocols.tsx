@@ -19,20 +19,24 @@ export default function ProtocolsScreen() {
   const [alerts, setAlerts] = useState<{ expiring: InventoryItem[]; lowStock: InventoryItem[] }>({ expiring: [], lowStock: [] });
 
   const loadProtocols = useCallback(async () => {
-    const protos = showAll ? await getAllProtocols() : await getActiveProtocols();
-    const withLastDose = await Promise.all(
-      protos.map(async (p) => ({
-        ...p,
-        lastDose: await getLastDoseForProtocol(p.id),
-      }))
-    );
-    setProtocols(withLastDose);
+    try {
+      const protos = showAll ? await getAllProtocols() : await getActiveProtocols();
+      const withLastDose = await Promise.all(
+        protos.map(async (p) => ({
+          ...p,
+          lastDose: await getLastDoseForProtocol(p.id),
+        }))
+      );
+      setProtocols(withLastDose);
 
-    const [expiring, lowStock] = await Promise.all([
-      getExpiringSoonInventory(7),
-      getLowStockInventory(0.2),
-    ]);
-    setAlerts({ expiring, lowStock });
+      const [expiring, lowStock] = await Promise.all([
+        getExpiringSoonInventory(7),
+        getLowStockInventory(0.2),
+      ]);
+      setAlerts({ expiring, lowStock });
+    } catch (e) {
+      // Silently handle — data will show on next focus
+    }
   }, [showAll]);
 
   useFocusEffect(useCallback(() => { loadProtocols(); }, [loadProtocols]));
@@ -90,12 +94,16 @@ export default function ProtocolsScreen() {
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.accent }]}
             onPress={() => router.push('/inventory')}
+            accessibilityRole="button"
+            accessibilityLabel="View inventory"
           >
             <Ionicons name="flask-outline" size={18} color="#ffffff" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.addBtn}
             onPress={() => router.push('/protocol/new')}
+            accessibilityRole="button"
+            accessibilityLabel="Create new protocol"
           >
             <Ionicons name="add" size={20} color="#ffffff" />
             <Text style={styles.addBtnText}>New</Text>

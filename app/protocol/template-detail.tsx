@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
@@ -64,6 +65,7 @@ export default function TemplateDetailScreen() {
         });
       }
 
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Protocols Created',
         `Created ${template.peptides.length} protocol${template.peptides.length > 1 ? 's' : ''} from "${template.name}"`,
@@ -148,8 +150,14 @@ export default function TemplateDetailScreen() {
         style={[styles.createBtn, creating && { opacity: 0.5 }]}
         onPress={handleCreate}
         disabled={creating}
+        accessibilityRole="button"
+        accessibilityLabel={`Create ${template.peptides.length > 1 ? `${template.peptides.length} protocols` : 'protocol'} from template`}
       >
-        <Ionicons name="add-circle" size={22} color="#ffffff" />
+        {creating ? (
+          <ActivityIndicator size="small" color="#ffffff" />
+        ) : (
+          <Ionicons name="add-circle" size={22} color="#ffffff" />
+        )}
         <Text style={styles.createBtnText}>
           {creating ? 'Creating...' : `Create ${template.peptides.length > 1 ? `${template.peptides.length} Protocols` : 'Protocol'}`}
         </Text>
