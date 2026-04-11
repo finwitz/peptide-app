@@ -34,17 +34,21 @@ let isConfigured = false;
 export async function configureRevenueCat(): Promise<void> {
   if (isConfigured) return;
 
-  if (__DEV__) {
-    Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-  }
-
-  if (!REVENUECAT_API_KEY) {
-    console.warn('[RevenueCat] No API key set — subscriptions disabled');
+  // Don't initialize if no key or using a test key in production
+  if (!REVENUECAT_API_KEY || (!__DEV__ && REVENUECAT_API_KEY.startsWith('test_'))) {
+    // Subscriptions silently disabled — app works as free tier
     return;
   }
 
-  Purchases.configure({ apiKey: REVENUECAT_API_KEY });
-  isConfigured = true;
+  try {
+    if (__DEV__) {
+      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+    }
+    Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+    isConfigured = true;
+  } catch {
+    // Configuration failed — silently fall back to free tier
+  }
 }
 
 // ── Entitlement check ────────────────────────────────────────────────
