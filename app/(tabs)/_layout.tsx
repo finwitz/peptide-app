@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../../constants/theme';
 
@@ -9,32 +9,40 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.iconActive,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.icon,
         tabBarStyle: {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.tabBarBorder,
           borderTopWidth: 0.5,
-          paddingTop: 4,
+          paddingTop: 6,
+          paddingBottom: Platform.OS === 'ios' ? 0 : 8,
+          height: Platform.OS === 'ios' ? 88 : 64,
           ...Platform.select({
             ios: {
               shadowColor: '#000',
-              shadowOffset: { width: 0, height: -2 },
+              shadowOffset: { width: 0, height: -3 },
               shadowOpacity: 0.06,
-              shadowRadius: 8,
+              shadowRadius: 12,
             },
-            android: { elevation: 8 },
+            android: { elevation: 12 },
           }),
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
+          letterSpacing: 0.3,
         },
         headerStyle: {
           backgroundColor: colors.background,
+          ...Platform.select({
+            ios: {
+              shadowColor: 'transparent',
+            },
+          }),
         },
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontWeight: '800', fontSize: 18, letterSpacing: -0.3 },
         headerShadowVisible: false,
       }}
     >
@@ -42,8 +50,10 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Calculator',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calculator-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? { transform: [{ scale: 1.1 }] } : undefined}>
+              <Ionicons name={focused ? 'calculator' : 'calculator-outline'} size={24} color={color} />
+            </View>
           ),
         }}
       />
@@ -51,17 +61,10 @@ export default function TabLayout() {
         name="protocols"
         options={{
           title: 'Protocols',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="assistant"
-        options={{
-          title: 'Assistant',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? { transform: [{ scale: 1.1 }] } : undefined}>
+              <Ionicons name={focused ? 'flask' : 'flask-outline'} size={24} color={color} />
+            </View>
           ),
         }}
       />
@@ -69,8 +72,21 @@ export default function TabLayout() {
         name="log"
         options={{
           title: 'Log',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="add-circle-outline" size={28} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? { transform: [{ scale: 1.15 }] } : undefined}>
+              <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={28} color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="assistant"
+        options={{
+          title: 'Assistant',
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? { transform: [{ scale: 1.1 }] } : undefined}>
+              <Ionicons name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} size={24} color={color} />
+            </View>
           ),
         }}
       />
@@ -78,8 +94,10 @@ export default function TabLayout() {
         name="library"
         options={{
           title: 'Library',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? { transform: [{ scale: 1.1 }] } : undefined}>
+              <Ionicons name={focused ? 'book' : 'book-outline'} size={24} color={color} />
+            </View>
           ),
         }}
       />

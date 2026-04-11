@@ -1,9 +1,5 @@
-import React, { useEffect, useCallback, createContext, useContext, useState } from 'react';
-import { Text, StyleSheet, Platform } from 'react-native';
-import Animated, {
-  useSharedValue, useAnimatedStyle, withSpring, withDelay, withTiming,
-  runOnJS,
-} from 'react-native-reanimated';
+import React, { useEffect, useCallback, createContext, useContext, useState, useRef } from 'react';
+import { Text, Animated, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,37 +29,30 @@ const TOAST_COLORS: Record<ToastType, { bg: string; text: string; icon: string }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<ToastConfig | null>(null);
-  const translateY = useSharedValue(-120);
-  const opacity = useSharedValue(0);
+  const translateY = useRef(new Animated.Value(-120)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
-
-  const hide = useCallback(() => {
-    setToast(null);
-  }, []);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const show = useCallback((config: ToastConfig) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     setToast(config);
-    translateY.value = -120;
-    opacity.value = 0;
-    translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
-    opacity.value = withTiming(1, { duration: 200 });
+    translateY.setValue(-120);
+    opacity.setValue(0);
+
+    Animated.parallel([
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 8 }),
+      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
 
     const duration = config.duration ?? 2500;
-    translateY.value = withDelay(
-      duration,
-      withTiming(-120, { duration: 300 }, (finished) => {
-        if (finished) {
-          runOnJS(hide)();
-        }
-      })
-    );
-    opacity.value = withDelay(duration, withTiming(0, { duration: 300 }));
+    timerRef.current = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(translateY, { toValue: -120, duration: 300, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start(() => setToast(null));
+    }, duration);
   }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }));
 
   const type = toast?.type ?? 'success';
   const colors = TOAST_COLORS[type];
@@ -75,8 +64,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         <Animated.View
           style={[
             styles.container,
-            animatedStyle,
             {
+              transform: [{ translateY }],
+              opacity,
               backgroundColor: colors.bg,
               top: insets.top + 8,
             },

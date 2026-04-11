@@ -1,13 +1,8 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
-  Pressable, type PressableProps, type ViewStyle, type StyleProp,
+  Pressable, Animated, type PressableProps, type ViewStyle, type StyleProp,
 } from 'react-native';
-import Animated, {
-  useSharedValue, useAnimatedStyle, withSpring, withTiming,
-} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-
-const AnimatedPressableBase = Animated.createAnimatedComponent(Pressable);
 
 interface Props extends Omit<PressableProps, 'style'> {
   style?: StyleProp<ViewStyle>;
@@ -18,17 +13,14 @@ interface Props extends Omit<PressableProps, 'style'> {
 export default function AnimatedPressable({
   children, style, scaleDown = 0.97, haptic = 'none', onPressIn, onPressOut, onPress, ...rest
 }: Props) {
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = useCallback((e: any) => {
-    scale.value = withSpring(scaleDown, { damping: 15, stiffness: 400 });
-    opacity.value = withTiming(0.92, { duration: 80 });
+    Animated.parallel([
+      Animated.spring(scale, { toValue: scaleDown, useNativeDriver: true, speed: 50, bounciness: 4 }),
+      Animated.timing(opacity, { toValue: 0.92, duration: 80, useNativeDriver: true }),
+    ]).start();
     if (haptic === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     else if (haptic === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     else if (haptic === 'selection') Haptics.selectionAsync();
@@ -36,20 +28,23 @@ export default function AnimatedPressable({
   }, [scaleDown, haptic, onPressIn]);
 
   const handlePressOut = useCallback((e: any) => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-    opacity.value = withTiming(1, { duration: 120 });
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 4 }),
+      Animated.timing(opacity, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start();
     onPressOut?.(e);
   }, [onPressOut]);
 
   return (
-    <AnimatedPressableBase
-      {...rest}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      onPress={onPress}
-      style={[animatedStyle, style]}
-    >
-      {children}
-    </AnimatedPressableBase>
+    <Animated.View style={[{ transform: [{ scale }], opacity }, style]}>
+      <Pressable
+        {...rest}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={onPress}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
   );
 }

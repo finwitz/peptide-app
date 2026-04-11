@@ -73,11 +73,11 @@ export default function AssistantScreen() {
         ListHeaderComponent={showWelcome ? (
           <View style={styles.welcome}>
             <View style={styles.welcomeIcon}>
-              <Ionicons name="sparkles" size={32} color={colors.primary} />
+              <Ionicons name="sparkles" size={28} color={colors.primary} />
             </View>
             <Text style={styles.welcomeTitle}>Peptide Assistant</Text>
             <Text style={styles.welcomeSubtitle}>
-              Ask about dosing, side effects, cycling, interactions, or compare peptides.
+              Ask about dosing, interactions, cycling, or compare peptides side-by-side.
             </Text>
             <View style={styles.chips}>
               {SUGGESTED_QUERIES.map((q, i) => (
@@ -86,8 +86,9 @@ export default function AssistantScreen() {
                   style={styles.chip}
                   onPress={() => handleSend(q)}
                   haptic="light"
-                  scaleDown={0.95}
+                  scaleDown={0.93}
                 >
+                  <Ionicons name="chatbubble-outline" size={12} color={colors.primary} />
                   <Text style={styles.chipText}>{q}</Text>
                 </AnimatedPressable>
               ))}
@@ -106,15 +107,17 @@ export default function AssistantScreen() {
           onSubmitEditing={() => handleSend(input)}
           returnKeyType="send"
         />
-        <TouchableOpacity
-          style={[styles.sendBtn, !input.trim() && { opacity: 0.4 }]}
+        <AnimatedPressable
+          style={[styles.sendBtn, !input.trim() && { opacity: 0.3 }]}
           onPress={() => handleSend(input)}
           disabled={!input.trim()}
           accessibilityRole="button"
           accessibilityLabel="Send message"
+          haptic="light"
+          scaleDown={0.9}
         >
-          <Ionicons name="send" size={20} color="#ffffff" />
-        </TouchableOpacity>
+          <Ionicons name="arrow-up" size={20} color="#ffffff" />
+        </AnimatedPressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -123,48 +126,63 @@ export default function AssistantScreen() {
 function makeStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    listContent: { padding: Spacing.lg, paddingBottom: Spacing.sm },
-    welcome: { alignItems: 'center', paddingVertical: Spacing.lg * 2 },
+    listContent: { padding: Spacing.xl, paddingBottom: Spacing.sm },
+    // Welcome
+    welcome: { alignItems: 'center', paddingVertical: Spacing.xxxl * 2 },
     welcomeIcon: {
-      width: 64, height: 64, borderRadius: 32,
+      width: 60, height: 60, borderRadius: 18,
       backgroundColor: colors.primaryLight,
       alignItems: 'center', justifyContent: 'center',
       marginBottom: Spacing.lg,
     },
-    welcomeTitle: { fontSize: FontSize.title, fontWeight: '800', color: colors.text, marginBottom: Spacing.sm },
-    welcomeSubtitle: { fontSize: FontSize.md, color: colors.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.lg },
-    chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: Spacing.sm, marginTop: Spacing.lg },
+    welcomeTitle: {
+      fontSize: FontSize.xxl, fontWeight: '800', color: colors.text,
+      letterSpacing: -0.5,
+    },
+    welcomeSubtitle: {
+      fontSize: FontSize.md, color: colors.textSecondary, textAlign: 'center',
+      lineHeight: 22, paddingHorizontal: Spacing.xxl, marginTop: Spacing.sm,
+    },
+    chips: {
+      flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center',
+      gap: Spacing.sm, marginTop: Spacing.xxl, paddingHorizontal: Spacing.lg,
+    },
     chip: {
-      backgroundColor: colors.primaryLight, borderRadius: BorderRadius.full,
-      paddingHorizontal: 14, paddingVertical: 8,
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: colors.card, borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
+      ...Shadows.sm,
     },
     chipText: { fontSize: FontSize.sm, color: colors.primary, fontWeight: '600' },
+    // Chat
     userBubble: {
       alignSelf: 'flex-end',
       backgroundColor: colors.primary,
       borderRadius: BorderRadius.lg,
       borderBottomRightRadius: 4,
-      padding: Spacing.md,
+      padding: Spacing.md, paddingHorizontal: Spacing.lg,
       marginBottom: Spacing.sm,
       maxWidth: '80%',
+      ...Shadows.sm,
     },
-    userText: { color: '#ffffff', fontSize: FontSize.md },
+    userText: { color: '#ffffff', fontSize: FontSize.md, lineHeight: 22 },
+    // Input
     inputRow: {
       flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-      padding: Spacing.md, paddingBottom: Spacing.lg,
-      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.cardBorder,
-      backgroundColor: colors.background,
+      padding: Spacing.md, paddingBottom: Spacing.xl,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+      backgroundColor: colors.card,
     },
     input: {
       flex: 1, backgroundColor: colors.input,
-      borderRadius: BorderRadius.lg, padding: Spacing.md,
+      borderRadius: BorderRadius.full, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
       fontSize: FontSize.md, color: colors.text,
-      borderWidth: 1, borderColor: colors.inputBorder,
     },
     sendBtn: {
-      width: 44, height: 44, borderRadius: 22,
+      width: 40, height: 40, borderRadius: 20,
       backgroundColor: colors.primary,
       alignItems: 'center', justifyContent: 'center',
+      ...Shadows.glow(colors.primary),
     },
   });
 }

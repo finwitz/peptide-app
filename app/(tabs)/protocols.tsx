@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, Alert, Platform,
+  View, Text, FlatList, StyleSheet, Alert,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,15 +30,12 @@ export default function ProtocolsScreen() {
         }))
       );
       setProtocols(withLastDose);
-
       const [expiring, lowStock] = await Promise.all([
         getExpiringSoonInventory(7),
         getLowStockInventory(0.2),
       ]);
       setAlerts({ expiring, lowStock });
-    } catch (e) {
-      // Silently handle — data will show on next focus
-    }
+    } catch (e) {}
   }, [showAll]);
 
   useFocusEffect(useCallback(() => { loadProtocols(); }, [loadProtocols]));
@@ -47,94 +44,81 @@ export default function ProtocolsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Delete Protocol',
-      `Delete "${protocol.name}"? This will also delete all dose logs for this protocol.`,
+      `Delete "${protocol.name}"? This will also delete all dose logs.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteProtocol(protocol.id);
-            loadProtocols();
-          },
-        },
+        { text: 'Delete', style: 'destructive', onPress: async () => { await deleteProtocol(protocol.id); loadProtocols(); } },
       ]
     );
   };
 
-  const getNextDoseDate = (protocol: Protocol & { lastDose?: DoseLog | null }): string => {
-    if (!protocol.lastDose) return 'No doses logged';
+  const getNextDoseInfo = (protocol: Protocol & { lastDose?: DoseLog | null }): { text: string; isOverdue: boolean } => {
+    if (!protocol.lastDose) return { text: 'No doses yet', isOverdue: false };
     const lastDate = new Date(protocol.lastDose.logged_at);
     const nextDate = new Date(lastDate.getTime() + protocol.frequency_days * 24 * 60 * 60 * 1000);
     const now = new Date();
-
-    if (nextDate < now) return 'Overdue';
-
+    if (nextDate < now) return { text: 'Overdue', isOverdue: true };
     const diffMs = nextDate.getTime() - now.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays > 0) return `in ${diffDays}d ${diffHours % 24}h`;
-    if (diffHours > 0) return `in ${diffHours}h`;
-    return 'Soon';
+    if (diffDays > 0) return { text: `${diffDays}d ${diffHours % 24}h`, isOverdue: false };
+    if (diffHours > 0) return { text: `${diffHours}h`, isOverdue: false };
+    return { text: 'Soon', isOverdue: false };
   };
 
   const styles = makeStyles(colors);
 
   return (
     <View style={styles.container}>
-      {/* Header controls */}
+      {/* Header */}
       <View style={styles.headerRow}>
         <AnimatedPressable
           style={styles.filterToggle}
           onPress={() => { setShowAll(!showAll); Haptics.selectionAsync(); }}
           haptic="selection"
-          scaleDown={0.95}
+          scaleDown={0.93}
         >
+          <Ionicons name={showAll ? 'list' : 'pulse'} size={14} color={colors.primary} />
           <Text style={styles.filterText}>{showAll ? 'All' : 'Active'}</Text>
-          <Ionicons name="chevron-down" size={16} color={colors.primary} />
+          <Ionicons name="chevron-down" size={14} color={colors.primary} />
         </AnimatedPressable>
 
         <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
           <AnimatedPressable
-            style={[styles.addBtn, { backgroundColor: colors.accent }]}
+            style={styles.iconBtn}
             onPress={() => router.push('/inventory')}
-            accessibilityRole="button"
-            accessibilityLabel="View inventory"
-            haptic="light"
+            haptic="light" scaleDown={0.9}
           >
-            <Ionicons name="flask-outline" size={18} color="#ffffff" />
+            <Ionicons name="flask-outline" size={18} color={colors.accent} />
           </AnimatedPressable>
           <AnimatedPressable
-            style={styles.addBtn}
+            style={styles.primaryBtn}
             onPress={() => router.push('/protocol/new')}
-            accessibilityRole="button"
-            accessibilityLabel="Create new protocol"
-            haptic="light"
+            haptic="light" scaleDown={0.95}
           >
-            <Ionicons name="add" size={20} color="#ffffff" />
-            <Text style={styles.addBtnText}>New</Text>
+            <Ionicons name="add" size={18} color="#ffffff" />
+            <Text style={styles.primaryBtnText}>New</Text>
           </AnimatedPressable>
         </View>
       </View>
 
-      {/* Inventory Alerts */}
+      {/* Alerts */}
       {alerts.expiring.length > 0 && (
-        <AnimatedPressable style={styles.alertBanner} onPress={() => router.push('/inventory')} haptic="light">
-          <Ionicons name="time-outline" size={16} color={colors.warning} />
-          <Text style={styles.alertText}>
-            {alerts.expiring.length} vial{alerts.expiring.length > 1 ? 's' : ''} expiring soon: {alerts.expiring.map(v => v.peptide_name).join(', ')}
+        <AnimatedPressable style={styles.alertBanner} onPress={() => router.push('/inventory')} haptic="light" scaleDown={0.98}>
+          <View style={[styles.alertDot, { backgroundColor: colors.warning }]} />
+          <Text style={styles.alertText} numberOfLines={1}>
+            {alerts.expiring.length} vial{alerts.expiring.length > 1 ? 's' : ''} expiring — {alerts.expiring.map(v => v.peptide_name).join(', ')}
           </Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.warning} />
+          <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
         </AnimatedPressable>
       )}
       {alerts.lowStock.length > 0 && (
-        <AnimatedPressable style={[styles.alertBanner, { backgroundColor: colors.dangerLight }]} onPress={() => router.push('/inventory')} haptic="light">
-          <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
-          <Text style={[styles.alertText, { color: colors.danger }]}>
-            {alerts.lowStock.length} vial{alerts.lowStock.length > 1 ? 's' : ''} running low: {alerts.lowStock.map(v => `${v.peptide_name} (${v.mg_remaining.toFixed(1)}mg)`).join(', ')}
+        <AnimatedPressable style={[styles.alertBanner, { borderLeftColor: colors.danger }]} onPress={() => router.push('/inventory')} haptic="light" scaleDown={0.98}>
+          <View style={[styles.alertDot, { backgroundColor: colors.danger }]} />
+          <Text style={styles.alertText} numberOfLines={1}>
+            {alerts.lowStock.length} vial{alerts.lowStock.length > 1 ? 's' : ''} running low
           </Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.danger} />
+          <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
         </AnimatedPressable>
       )}
 
@@ -142,118 +126,108 @@ export default function ProtocolsScreen() {
         data={protocols}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="flask-outline" size={40} color={colors.primary} />
+              <Ionicons name="flask-outline" size={36} color={colors.primary} />
             </View>
-            <Text style={styles.emptyTitle}>No Protocols Yet</Text>
+            <Text style={styles.emptyTitle}>No protocols yet</Text>
             <Text style={styles.emptyText}>
-              Create your first protocol to start tracking doses, set reminders, and monitor adherence.
+              Set up your first protocol to start tracking doses and stay on schedule.
             </Text>
             <AnimatedPressable
-              style={styles.emptyBtn}
+              style={styles.emptyCta}
               onPress={() => router.push('/protocol/new')}
-              haptic="light"
-              scaleDown={0.95}
+              haptic="light" scaleDown={0.95}
             >
-              <Ionicons name="add-circle" size={20} color="#ffffff" />
-              <Text style={styles.emptyBtnText}>Create Protocol</Text>
+              <Ionicons name="add" size={18} color="#ffffff" />
+              <Text style={styles.emptyCtaText}>Create Protocol</Text>
             </AnimatedPressable>
             <AnimatedPressable
-              style={styles.emptyTemplateBtn}
+              style={styles.emptySecondary}
               onPress={() => router.push('/protocol/templates')}
-              haptic="light"
-              scaleDown={0.95}
+              haptic="light" scaleDown={0.95}
             >
-              <Ionicons name="copy-outline" size={18} color={colors.primary} />
-              <Text style={styles.emptyTemplateBtnText}>Browse Templates</Text>
+              <Ionicons name="copy-outline" size={16} color={colors.primary} />
+              <Text style={styles.emptySecondaryText}>Browse Templates</Text>
             </AnimatedPressable>
           </View>
         }
         renderItem={({ item }) => {
-          const nextDose = getNextDoseDate(item);
-          const isOverdue = nextDose === 'Overdue';
-
+          const { text: nextDose, isOverdue } = getNextDoseInfo(item);
           return (
             <AnimatedPressable
               style={styles.card}
               onPress={() => router.push(`/protocol/${item.id}`)}
               onLongPress={() => handleDelete(item)}
-              haptic="light"
-              scaleDown={0.98}
+              haptic="light" scaleDown={0.98}
             >
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{item.name}</Text>
-                  <Text style={styles.cardPeptide}>{item.peptide_name}</Text>
+              {/* Status indicator */}
+              <View style={[styles.statusBar, isOverdue ? { backgroundColor: colors.danger } : item.is_active ? { backgroundColor: colors.success } : { backgroundColor: colors.textTertiary }]} />
+
+              <View style={styles.cardBody}>
+                <View style={styles.cardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{item.name}</Text>
+                    <Text style={styles.cardPeptide}>{item.peptide_name}</Text>
+                  </View>
+                  {item.is_active ? (
+                    <View style={[styles.badge, isOverdue && { backgroundColor: colors.dangerLight }]}>
+                      <Ionicons name={isOverdue ? 'alert-circle' : 'time-outline'} size={12} color={isOverdue ? colors.danger : colors.primary} />
+                      <Text style={[styles.badgeText, isOverdue && { color: colors.danger }]}>{nextDose}</Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.badge, { backgroundColor: colors.surface }]}>
+                      <Text style={[styles.badgeText, { color: colors.textTertiary }]}>Paused</Text>
+                    </View>
+                  )}
                 </View>
-                {item.is_active ? (
-                  <View style={[styles.badge, isOverdue && styles.badgeOverdue]}>
-                    <Text style={[styles.badgeText, isOverdue && styles.badgeTextOverdue]}>
-                      {nextDose}
+
+                {/* End date */}
+                {item.end_date && (() => {
+                  const daysLeft = Math.ceil((new Date(item.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const isExpired = daysLeft <= 0;
+                  return (
+                    <View style={styles.endDate}>
+                      <Ionicons name={isExpired ? 'checkmark-circle' : 'calendar-outline'} size={12} color={isExpired ? colors.success : colors.textTertiary} />
+                      <Text style={[styles.endDateText, isExpired && { color: colors.success }]}>
+                        {isExpired ? 'Cycle complete' : `${daysLeft}d remaining`}
+                      </Text>
+                    </View>
+                  );
+                })()}
+
+                <View style={styles.cardDetails}>
+                  <View style={styles.detailChip}>
+                    <Text style={styles.detailChipText}>
+                      {item.dose_mcg >= 1000 ? `${(item.dose_mcg / 1000).toFixed(1)} mg` : `${item.dose_mcg} mcg`}
                     </Text>
                   </View>
-                ) : (
-                  <View style={styles.badgeInactive}>
-                    <Text style={styles.badgeTextInactive}>Inactive</Text>
+                  <View style={styles.detailChip}>
+                    <Text style={styles.detailChipText}>
+                      {item.frequency_days === 1 ? 'Daily' :
+                       item.frequency_days === 7 ? 'Weekly' :
+                       item.frequency_days === 3.5 ? '2x/week' :
+                       `Every ${item.frequency_days}d`}
+                    </Text>
                   </View>
+                  <View style={styles.detailChip}>
+                    <Text style={styles.detailChipText}>{item.route}</Text>
+                  </View>
+                </View>
+
+                {item.is_active && (
+                  <AnimatedPressable
+                    style={styles.quickLogBtn}
+                    onPress={() => router.push(`/log/${item.id}`)}
+                    haptic="selection" scaleDown={0.97}
+                  >
+                    <Ionicons name="add-circle" size={16} color={colors.primary} />
+                    <Text style={styles.quickLogText}>Log Dose</Text>
+                  </AnimatedPressable>
                 )}
               </View>
-
-              {/* End date indicator */}
-              {item.end_date && (() => {
-                const endDate = new Date(item.end_date);
-                const now = new Date();
-                const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                const isExpired = daysLeft <= 0;
-                return (
-                  <View style={[styles.endDateBanner, isExpired ? { backgroundColor: colors.dangerLight } : { backgroundColor: colors.warningLight }]}>
-                    <Ionicons name={isExpired ? 'checkmark-circle' : 'calendar-outline'} size={14} color={isExpired ? colors.danger : colors.warning} />
-                    <Text style={[styles.endDateText, { color: isExpired ? colors.danger : colors.warning }]}>
-                      {isExpired ? 'Cycle complete' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`}
-                    </Text>
-                  </View>
-                );
-              })()}
-
-              <View style={styles.cardDetails}>
-                <View style={styles.detailItem}>
-                  <Ionicons name="eyedrop-outline" size={14} color={colors.textTertiary} />
-                  <Text style={styles.detailText}>
-                    {item.dose_mcg >= 1000
-                      ? `${(item.dose_mcg / 1000).toFixed(1)}mg`
-                      : `${item.dose_mcg}mcg`
-                    }
-                  </Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Ionicons name="repeat-outline" size={14} color={colors.textTertiary} />
-                  <Text style={styles.detailText}>
-                    {item.frequency_days === 1 ? 'Daily' :
-                     item.frequency_days === 7 ? 'Weekly' :
-                     item.frequency_days === 3.5 ? '2x/week' :
-                     `Every ${item.frequency_days}d`}
-                  </Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Ionicons name="navigate-outline" size={14} color={colors.textTertiary} />
-                  <Text style={styles.detailText}>{item.route}</Text>
-                </View>
-              </View>
-
-              {/* Quick log button */}
-              {item.is_active && (
-                <AnimatedPressable
-                  style={styles.quickLogBtn}
-                  onPress={() => router.push(`/log/${item.id}`)}
-                  haptic="selection"
-                  scaleDown={0.98}
-                >
-                  <Ionicons name="add-circle" size={18} color={colors.primary} />
-                  <Text style={styles.quickLogText}>Log Dose</Text>
-                </AnimatedPressable>
-              )}
             </AnimatedPressable>
           );
         }}
@@ -265,91 +239,98 @@ export default function ProtocolsScreen() {
 function makeStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    // Header
     headerRow: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      padding: Spacing.lg, paddingBottom: Spacing.sm,
+      paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
     },
     filterToggle: {
-      flexDirection: 'row', alignItems: 'center', gap: 4,
-      paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-      backgroundColor: colors.surface, borderRadius: BorderRadius.full,
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingHorizontal: Spacing.md, paddingVertical: 8,
+      backgroundColor: colors.primaryLight, borderRadius: BorderRadius.full,
     },
-    filterText: { fontSize: FontSize.sm, color: colors.primary, fontWeight: '600' },
-    addBtn: {
+    filterText: { fontSize: FontSize.sm, color: colors.primary, fontWeight: '700' },
+    iconBtn: {
+      width: 38, height: 38, borderRadius: BorderRadius.full,
+      backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center',
+    },
+    primaryBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
       backgroundColor: colors.primary, borderRadius: BorderRadius.full,
-      paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
-      minHeight: 36,
-      ...Shadows.sm,
+      paddingHorizontal: Spacing.lg, height: 38,
+      ...Shadows.glow(colors.primary),
     },
-    addBtnText: { color: '#ffffff', fontWeight: '600', fontSize: FontSize.sm },
+    primaryBtnText: { color: '#ffffff', fontWeight: '700', fontSize: FontSize.sm },
+    // Alerts
     alertBanner: {
       flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-      marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
-      backgroundColor: colors.warningLight, borderRadius: BorderRadius.md,
+      marginHorizontal: Spacing.xl, marginBottom: Spacing.sm,
+      backgroundColor: colors.card, borderRadius: BorderRadius.md,
       padding: Spacing.md,
+      borderLeftWidth: 3, borderLeftColor: colors.warning,
     },
-    alertText: { flex: 1, fontSize: FontSize.xs, color: colors.warning, fontWeight: '600' },
-    listContent: { padding: Spacing.lg, paddingTop: 0 },
+    alertDot: { width: 6, height: 6, borderRadius: 3 },
+    alertText: { flex: 1, fontSize: FontSize.xs, color: colors.textSecondary, fontWeight: '500' },
+    // List
+    listContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.sm, paddingBottom: 80 },
+    // Cards
     card: {
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
-      borderWidth: 1, borderColor: colors.cardBorder,
-      padding: Spacing.lg, marginBottom: Spacing.md,
+      marginBottom: Spacing.md, flexDirection: 'row', overflow: 'hidden',
       ...Shadows.sm,
     },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.sm },
-    cardTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text },
-    cardPeptide: { fontSize: FontSize.sm, color: colors.textSecondary, marginTop: 2 },
+    statusBar: { width: 4, borderTopLeftRadius: BorderRadius.lg, borderBottomLeftRadius: BorderRadius.lg },
+    cardBody: { flex: 1, padding: Spacing.lg },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    cardTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text, letterSpacing: -0.3 },
+    cardPeptide: { fontSize: FontSize.sm, color: colors.textSecondary, marginTop: 1 },
     badge: {
-      backgroundColor: colors.primaryLight, borderRadius: BorderRadius.full,
-      paddingHorizontal: Spacing.sm, paddingVertical: 2,
-    },
-    badgeOverdue: { backgroundColor: colors.dangerLight },
-    badgeText: { fontSize: FontSize.xs, color: colors.primary, fontWeight: '600' },
-    badgeTextOverdue: { color: colors.danger },
-    badgeInactive: {
-      backgroundColor: colors.surface, borderRadius: BorderRadius.full,
-      paddingHorizontal: Spacing.sm, paddingVertical: 2,
-    },
-    badgeTextInactive: { fontSize: FontSize.xs, color: colors.textTertiary },
-    endDateBanner: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
-      borderRadius: BorderRadius.sm, padding: Spacing.xs, paddingHorizontal: Spacing.sm,
-      marginBottom: Spacing.sm,
+      backgroundColor: colors.primaryLight, borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm, paddingVertical: 3,
     },
-    endDateText: { fontSize: FontSize.xs, fontWeight: '600' },
-    cardDetails: { flexDirection: 'row', gap: Spacing.lg, marginBottom: Spacing.md },
-    detailItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    detailText: { fontSize: FontSize.sm, color: colors.textSecondary },
+    badgeText: { fontSize: FontSize.xs, color: colors.primary, fontWeight: '600' },
+    endDate: {
+      flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm,
+    },
+    endDateText: { fontSize: FontSize.xs, color: colors.textTertiary, fontWeight: '500' },
+    cardDetails: {
+      flexDirection: 'row', gap: 6, marginTop: Spacing.md, flexWrap: 'wrap',
+    },
+    detailChip: {
+      backgroundColor: colors.surface, borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm, paddingVertical: 3,
+    },
+    detailChipText: { fontSize: FontSize.xs, color: colors.textSecondary, fontWeight: '500' },
     quickLogBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.md,
-      minHeight: 44,
+      borderTopWidth: 1, borderTopColor: colors.border, paddingTop: Spacing.md, marginTop: Spacing.md,
+      minHeight: 40,
     },
-    quickLogText: { fontSize: FontSize.sm, color: colors.primary, fontWeight: '600' },
-    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: Spacing.xl },
+    quickLogText: { fontSize: FontSize.sm, color: colors.primary, fontWeight: '700' },
+    // Empty
+    empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: Spacing.xxl },
     emptyIconWrap: {
-      width: 80, height: 80, borderRadius: 40,
+      width: 80, height: 80, borderRadius: 24,
       backgroundColor: colors.primaryLight,
-      alignItems: 'center', justifyContent: 'center',
-      marginBottom: Spacing.lg,
+      alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xl,
     },
-    emptyTitle: { fontSize: FontSize.xl, fontWeight: '800', color: colors.text },
+    emptyTitle: { fontSize: FontSize.xl, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
     emptyText: {
       fontSize: FontSize.md, color: colors.textSecondary, marginTop: Spacing.sm,
-      textAlign: 'center', lineHeight: 22, paddingHorizontal: Spacing.lg,
+      textAlign: 'center', lineHeight: 22,
     },
-    emptyBtn: {
+    emptyCta: {
       flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
       backgroundColor: colors.primary, borderRadius: BorderRadius.full,
-      paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md, marginTop: Spacing.xl,
-      ...Shadows.md,
+      paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md, marginTop: Spacing.xxl,
+      ...Shadows.glow(colors.primary),
     },
-    emptyBtnText: { color: '#ffffff', fontWeight: '700', fontSize: FontSize.md },
-    emptyTemplateBtn: {
+    emptyCtaText: { color: '#ffffff', fontWeight: '700', fontSize: FontSize.md },
+    emptySecondary: {
       flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-      paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md, marginTop: Spacing.md,
+      paddingVertical: Spacing.md, marginTop: Spacing.sm,
     },
-    emptyTemplateBtnText: { color: colors.primary, fontWeight: '600', fontSize: FontSize.md },
+    emptySecondaryText: { color: colors.primary, fontWeight: '600', fontSize: FontSize.md },
   });
 }
