@@ -1,8 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import type { AssistantResponse, AssistantSection } from '../lib/assistant';
+import { getPeptideByName } from '../lib/database';
 
 interface Props {
   response: AssistantResponse;
@@ -17,7 +19,22 @@ const SECTION_CONFIG: Record<AssistantSection['type'], { icon: string; color: (c
 
 export default function AssistantMessage({ response }: Props) {
   const colors = useThemeColors();
+  const router = useRouter();
+  const [peptideIds, setPeptideIds] = useState<Record<string, number>>({});
   const styles = makeStyles(colors);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const map: Record<string, number> = {};
+      for (const name of response.relatedPeptides) {
+        const pep = await getPeptideByName(name);
+        if (pep) map[name] = pep.id;
+      }
+      if (!cancelled) setPeptideIds(map);
+    })();
+    return () => { cancelled = true; };
+  }, [response.relatedPeptides]);
 
   return (
     <View style={styles.container}>
@@ -52,7 +69,29 @@ export default function AssistantMessage({ response }: Props) {
       {response.relatedPeptides.length > 0 && (
         <View style={styles.relatedRow}>
           <Ionicons name="link-outline" size={12} color={colors.textTertiary} />
-          <Text style={styles.relatedText}>{response.relatedPeptides.join(' · ')}</Text>
+          {response.relatedPeptides.map((name, i) => {
+            const id = peptideIds[name];
+            const chip = (
+              <Text
+                key={name}
+                style={[styles.relatedChip, id != null && styles.relatedChipLink]}
+              >
+                {name}
+              </Text>
+            );
+            if (id != null) {
+              return (
+                <TouchableOpacity
+                  key={name}
+                  onPress={() => router.push(`/peptide/${id}`)}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                >
+                  {chip}
+                </TouchableOpacity>
+              );
+            }
+            return chip;
+          })}
         </View>
       )}
     </View>
@@ -111,14 +150,20 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     relatedRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
+      flexWrap: 'wrap',
+      gap: 6,
       paddingTop: Spacing.sm,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.cardBorder,
     },
-    relatedText: {
+    relatedChip: {
       fontSize: FontSize.xs,
       color: colors.textTertiary,
+    },
+    relatedChipLink: {
+      color: colors.primary,
+      fontWeight: '600',
+      textDecorationLine: 'underline',
     },
   });
 }

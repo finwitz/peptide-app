@@ -7,15 +7,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
 import AnimatedPressable from '../../components/AnimatedPressable';
 import { getPeptideById, type Peptide } from '../../lib/database';
+import { getInteractionsForPeptide, getSeverityInfo } from '../../lib/interactionChecker';
+import type { PeptideInteraction } from '../../lib/interactions';
 
 export default function PeptideDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useThemeColors();
   const router = useRouter();
   const [peptide, setPeptide] = useState<Peptide | null>(null);
+  const [interactions, setInteractions] = useState<PeptideInteraction[]>([]);
 
   useEffect(() => {
-    if (id) getPeptideById(parseInt(id)).then(setPeptide);
+    if (id) getPeptideById(parseInt(id)).then((pep) => {
+      setPeptide(pep);
+      if (pep) setInteractions(getInteractionsForPeptide(pep.name));
+    });
   }, [id]);
 
   if (!peptide) {
@@ -125,6 +131,34 @@ export default function PeptideDetailScreen() {
         </View>
       )}
 
+      {/* Interactions */}
+      {interactions.length > 0 && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="git-compare-outline" size={18} color={colors.warning} />
+            <Text style={styles.cardTitle}>Known Interactions</Text>
+          </View>
+          {interactions.map((ixn, i) => {
+            const other = ixn.peptideA.toLowerCase() === peptide.name.toLowerCase() ? ixn.peptideB : ixn.peptideA;
+            const info = getSeverityInfo(ixn.severity);
+            const severityColor =
+              ixn.severity === 'contraindicated' || ixn.severity === 'major' ? colors.danger :
+              ixn.severity === 'moderate' ? colors.warning :
+              colors.textSecondary;
+            return (
+              <View key={i} style={styles.ixnRow}>
+                <View style={styles.ixnHeader}>
+                  <Ionicons name={info.icon as any} size={14} color={severityColor} />
+                  <Text style={[styles.ixnSeverity, { color: severityColor }]}>{info.label}</Text>
+                  <Text style={styles.ixnOther}>with {other}</Text>
+                </View>
+                <Text style={styles.ixnDesc}>{ixn.description}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       {/* Disclaimer */}
       <View style={styles.disclaimerCard}>
         <Ionicons name="warning-outline" size={18} color={colors.warning} />
@@ -138,7 +172,7 @@ export default function PeptideDetailScreen() {
       {/* Create Protocol */}
       <AnimatedPressable
         style={styles.createBtn}
-        onPress={() => router.push('/protocol/new')}
+        onPress={() => router.push({ pathname: '/protocol/new', params: { peptideId: peptide.id.toString() } })}
         haptic="light"
         scaleDown={0.97}
         accessibilityRole="button"
@@ -185,6 +219,14 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
     cardTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text },
     cardBody: { fontSize: FontSize.md, color: colors.textSecondary, lineHeight: 22 },
+    ixnRow: {
+      paddingVertical: Spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+    },
+    ixnHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+    ixnSeverity: { fontSize: FontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+    ixnOther: { fontSize: FontSize.sm, color: colors.text, fontWeight: '600' },
+    ixnDesc: { fontSize: FontSize.xs, color: colors.textSecondary, lineHeight: 18 },
     disclaimerCard: {
       flexDirection: 'row', gap: Spacing.sm,
       backgroundColor: colors.warningLight, borderRadius: BorderRadius.lg,

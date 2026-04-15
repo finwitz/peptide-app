@@ -1,18 +1,18 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity, SectionList,
+  View, Text, StyleSheet, TextInput, TouchableOpacity, SectionList, ScrollView,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
 import AnimatedPressable from '../../components/AnimatedPressable';
-import { getAllPeptides, searchPeptides, type Peptide } from '../../lib/database';
+import { getAllPeptides, type Peptide } from '../../lib/database';
 
 const CATEGORY_ICONS: Record<string, string> = {
   'GLP-1': 'trending-down-outline',
   'Healing': 'bandage-outline',
   'Growth Hormone': 'arrow-up-outline',
-  'Cognitive': 'brain-outline',
+  'Cognitive': 'bulb-outline',
   'Immune': 'shield-checkmark-outline',
   'Longevity': 'hourglass-outline',
   'Sexual Health': 'heart-outline',
@@ -29,13 +29,26 @@ export default function LibraryScreen() {
   const colors = useThemeColors();
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const [allPeptides, setAllPeptides] = useState<Peptide[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sections, setSections] = useState<{ title: string; data: Peptide[] }[]>([]);
 
-  useFocusEffect(useCallback(() => { loadPeptides(); }, []));
+  useFocusEffect(useCallback(() => {
+    getAllPeptides().then(setAllPeptides);
+  }, []));
 
-  const loadPeptides = async (search?: string) => {
-    const peptides = search ? await searchPeptides(search) : await getAllPeptides();
-    const grouped = peptides.reduce<Record<string, Peptide[]>>((acc, p) => {
+  // Derive sections from current filters
+  React.useEffect(() => {
+    const matchQuery = query.trim().toLowerCase();
+    const filtered = allPeptides.filter((p) => {
+      if (selectedCategory && p.category !== selectedCategory) return false;
+      if (matchQuery) {
+        const hay = `${p.name} ${p.category} ${p.description ?? ''}`.toLowerCase();
+        if (!hay.includes(matchQuery)) return false;
+      }
+      return true;
+    });
+    const grouped = filtered.reduce<Record<string, Peptide[]>>((acc, p) => {
       if (!acc[p.category]) acc[p.category] = [];
       acc[p.category].push(p);
       return acc;
@@ -45,12 +58,15 @@ export default function LibraryScreen() {
         .map(([title, data]) => ({ title, data }))
         .sort((a, b) => a.title.localeCompare(b.title))
     );
-  };
+  }, [allPeptides, query, selectedCategory]);
 
   const handleSearch = (text: string) => {
     setQuery(text);
-    loadPeptides(text || undefined);
   };
+
+  const allCategories = React.useMemo(() => {
+    return Array.from(new Set(allPeptides.map((p) => p.category))).sort();
+  }, [allPeptides]);
 
   const formatDoseRange = (low: number | null, high: number | null): string => {
     if (!low && !high) return '—';
@@ -79,6 +95,35 @@ export default function LibraryScreen() {
             <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         )}
+      </View>
+
+      {/* Category chips */}
+      <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.sm }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <TouchableOpacity
+            style={[styles.catChip, selectedCategory == null && styles.catChipActive]}
+            onPress={() => setSelectedCategory(null)}
+          >
+            <Text style={[styles.catChipText, selectedCategory == null && styles.catChipTextActive]}>All</Text>
+          </TouchableOpacity>
+          {allCategories.map((cat) => {
+            const isActive = selectedCategory === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.catChip, isActive && styles.catChipActive]}
+                onPress={() => setSelectedCategory(isActive ? null : cat)}
+              >
+                <Ionicons
+                  name={(CATEGORY_ICONS[cat] || 'flask-outline') as any}
+                  size={12}
+                  color={isActive ? '#ffffff' : colors.primary}
+                />
+                <Text style={[styles.catChipText, isActive && styles.catChipTextActive]}>{cat}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <SectionList
@@ -148,6 +193,16 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       flex: 1, fontSize: FontSize.md, color: colors.text,
       paddingVertical: Spacing.md,
     },
+    catChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: colors.card, borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+      borderWidth: 1, borderColor: colors.cardBorder,
+      marginRight: Spacing.sm,
+    },
+    catChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    catChipText: { fontSize: FontSize.xs, color: colors.text, fontWeight: '600' },
+    catChipTextActive: { color: '#ffffff' },
     listContent: { paddingHorizontal: Spacing.xl, paddingBottom: 80 },
     sectionHeader: {
       flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
