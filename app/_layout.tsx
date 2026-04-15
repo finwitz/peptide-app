@@ -62,6 +62,14 @@ export default function RootLayout() {
             name="inventory/add"
             options={{ title: 'Add Vial', presentation: 'modal' }}
           />
+          <Stack.Screen
+            name="inventory/edit"
+            options={{ title: 'Edit Vial', presentation: 'modal' }}
+          />
+          <Stack.Screen
+            name="settings"
+            options={{ title: 'Settings' }}
+          />
         </Stack>
       </ToastProvider>
     </PremiumProvider>
