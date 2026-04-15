@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator, Platform,
+  View, Text, ScrollView, StyleSheet, ActivityIndicator, Platform, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,13 +12,19 @@ import { usePremium } from '../lib/PremiumContext';
 import { getOfferings, purchasePlan, restorePurchases, type PlanOption } from '../lib/revenue';
 
 const FEATURES = [
-  { icon: 'flask', title: 'Unlimited Protocols', desc: 'Create as many as you need' },
-  { icon: 'book', title: 'Full Peptide Library', desc: '150+ compounds with dosing data' },
+  { icon: 'flask', title: 'Unlimited Protocols', desc: 'Free tier is capped at 2' },
   { icon: 'copy', title: 'Protocol Templates', desc: 'Expert-designed starting points' },
   { icon: 'chatbubble-ellipses', title: 'AI Assistant', desc: 'Ask anything about peptides' },
   { icon: 'download', title: 'Data Export', desc: 'CSV & JSON export of all logs' },
+  { icon: 'book', title: 'Full Peptide Library', desc: '65 compounds with dosing data' },
   { icon: 'notifications', title: 'Smart Reminders', desc: 'Never miss a dose' },
 ];
+
+// External legal URLs — replace with your own hosted pages before release
+const TERMS_URL = 'https://peptidecalc.app/terms';
+const PRIVACY_URL = 'https://peptidecalc.app/privacy';
+const MANAGE_URL_IOS = 'https://apps.apple.com/account/subscriptions';
+const MANAGE_URL_ANDROID = 'https://play.google.com/store/account/subscriptions';
 
 export default function PaywallScreen() {
   const colors = useThemeColors();
@@ -170,7 +176,11 @@ export default function PaywallScreen() {
           <ActivityIndicator color="#ffffff" />
         ) : (
           <Text style={styles.ctaText}>
-            {selectedPlan === 'lifetime' ? 'Purchase Lifetime Access' : 'Subscribe Now'}
+            {plans.length === 0
+              ? 'Unavailable'
+              : selectedPlan === 'lifetime'
+                ? 'Purchase Lifetime Access'
+                : 'Subscribe Now'}
           </Text>
         )}
       </AnimatedPressable>
@@ -192,6 +202,23 @@ export default function PaywallScreen() {
         Payment is charged to your {Platform.OS === 'ios' ? 'Apple ID' : 'Google Play'} account.
         Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period.
       </Text>
+
+      <View style={styles.legalLinks}>
+        <Text style={styles.legalLink} onPress={() => Linking.openURL(TERMS_URL)}>
+          Terms of Service
+        </Text>
+        <Text style={styles.legalSeparator}>·</Text>
+        <Text style={styles.legalLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
+          Privacy Policy
+        </Text>
+        <Text style={styles.legalSeparator}>·</Text>
+        <Text
+          style={styles.legalLink}
+          onPress={() => Linking.openURL(Platform.OS === 'ios' ? MANAGE_URL_IOS : MANAGE_URL_ANDROID)}
+        >
+          Manage Subscription
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -283,5 +310,11 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: FontSize.xs, color: colors.textTertiary,
       textAlign: 'center', lineHeight: 18, paddingHorizontal: Spacing.lg,
     },
+    legalLinks: {
+      flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap',
+      marginTop: Spacing.md, paddingHorizontal: Spacing.lg, gap: 4,
+    },
+    legalLink: { fontSize: FontSize.xs, color: colors.primary, fontWeight: '600' },
+    legalSeparator: { fontSize: FontSize.xs, color: colors.textTertiary },
   });
 }

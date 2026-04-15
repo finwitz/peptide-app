@@ -4,9 +4,18 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
 import AnimatedPressable from '../../components/AnimatedPressable';
+import PremiumGate from '../../components/PremiumGate';
 import { getTemplatesByCategory, type ProtocolTemplate } from '../../lib/protocolTemplates';
 
 export default function TemplatesScreen() {
+  return (
+    <PremiumGate feature="Expert-designed protocol templates">
+      <TemplatesContent />
+    </PremiumGate>
+  );
+}
+
+function TemplatesContent() {
   const colors = useThemeColors();
   const router = useRouter();
   const sections = getTemplatesByCategory();

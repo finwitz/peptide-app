@@ -1,11 +1,12 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  View, Text, FlatList, TextInput, TouchableOpacity,
+  View, Text, FlatList, TextInput,
   StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
 import AnimatedPressable from '../../components/AnimatedPressable';
+import PremiumGate from '../../components/PremiumGate';
 import { processQuery, SUGGESTED_QUERIES, type AssistantResponse } from '../../lib/assistant';
 import { getAllPeptides, type Peptide } from '../../lib/database';
 import AssistantMessage from '../../components/AssistantMessage';
@@ -18,6 +19,14 @@ interface ChatMessage {
 }
 
 export default function AssistantScreen() {
+  return (
+    <PremiumGate feature="The AI peptide assistant">
+      <AssistantContent />
+    </PremiumGate>
+  );
+}
+
+function AssistantContent() {
   const colors = useThemeColors();
   const styles = makeStyles(colors);
   const [messages, setMessages] = useState<ChatMessage[]>([]);

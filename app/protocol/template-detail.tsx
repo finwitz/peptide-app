@@ -9,8 +9,18 @@ import { createProtocol, getActiveProtocols, type Protocol } from '../../lib/dat
 import { checkInteractions } from '../../lib/interactionChecker';
 import type { PeptideInteraction } from '../../lib/interactions';
 import InteractionWarning from '../../components/InteractionWarning';
+import PremiumGate from '../../components/PremiumGate';
+import { formatFrequency, formatDose } from '../../lib/calculations';
 
 export default function TemplateDetailScreen() {
+  return (
+    <PremiumGate feature="Expert-designed protocol templates">
+      <TemplateDetailContent />
+    </PremiumGate>
+  );
+}
+
+function TemplateDetailContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useThemeColors();
   const router = useRouter();
@@ -78,15 +88,7 @@ export default function TemplateDetailScreen() {
     }
   };
 
-  const formatDose = (mcg: number) => mcg >= 1000 ? `${(mcg / 1000).toFixed(1)} mg` : `${mcg} mcg`;
-  const formatFreq = (days: number) => {
-    if (days === 1) return 'Daily';
-    if (days === 7) return 'Weekly';
-    if (days === 3.5) return '2x/week';
-    if (days === 2.33) return '3x/week';
-    if (days === 2) return 'EOD';
-    return `Every ${days} days`;
-  };
+  const formatFreq = formatFrequency;
 
   const styles = makeStyles(colors);
 
