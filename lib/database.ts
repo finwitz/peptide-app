@@ -9,7 +9,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   return db;
 }
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 async function initializeDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
   const versionResult = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -79,6 +79,7 @@ async function initializeDatabase(database: SQLite.SQLiteDatabase): Promise<void
       notification_id TEXT,
       hour INTEGER NOT NULL,
       minute INTEGER NOT NULL,
+      weekday INTEGER,
       is_enabled INTEGER DEFAULT 1,
       FOREIGN KEY (protocol_id) REFERENCES protocols(id) ON DELETE CASCADE
     );
@@ -133,6 +134,11 @@ async function initializeDatabase(database: SQLite.SQLiteDatabase): Promise<void
   if (currentVersion < 3) {
     try {
       await database.execAsync('ALTER TABLE dose_logs ADD COLUMN inventory_id INTEGER REFERENCES inventory(id)');
+    } catch { /* column may already exist */ }
+  }
+  if (currentVersion < 4) {
+    try {
+      await database.execAsync('ALTER TABLE reminders ADD COLUMN weekday INTEGER');
     } catch { /* column may already exist */ }
   }
 
@@ -600,12 +606,13 @@ export async function logDose(
   notes?: string,
   sideEffects?: string,
   inventoryId?: number,
+  loggedAt?: string,
 ): Promise<number> {
   const db = await getDatabase();
   const result = await db.runAsync(
-    `INSERT INTO dose_logs (protocol_id, dose_mcg, injection_site, notes, side_effects, inventory_id)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    protocolId, doseMcg, injectionSite ?? null, notes ?? null, sideEffects ?? null, inventoryId ?? null,
+    `INSERT INTO dose_logs (protocol_id, dose_mcg, injection_site, notes, side_effects, inventory_id, logged_at)
+     VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
+    protocolId, doseMcg, injectionSite ?? null, notes ?? null, sideEffects ?? null, inventoryId ?? null, loggedAt ?? null,
   );
 
   // Update injection site usage
@@ -623,6 +630,27 @@ export async function logDose(
   }
 
   return result.lastInsertRowId;
+}
+
+export async function updateDoseLog(
+  id: number,
+  updates: Partial<Pick<DoseLog, 'dose_mcg' | 'injection_site' | 'notes' | 'side_effects' | 'logged_at'>>,
+): Promise<void> {
+  const db = await getDatabase();
+  const fields: string[] = [];
+  const values: (string | number | null)[] = [];
+  for (const [key, value] of Object.entries(updates)) {
+    fields.push(`${key} = ?`);
+    values.push(value ?? null);
+  }
+  if (fields.length === 0) return;
+  values.push(id);
+  await db.runAsync(`UPDATE dose_logs SET ${fields.join(', ')} WHERE id = ?`, ...values);
+}
+
+export async function deleteDoseLog(id: number): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync('DELETE FROM dose_logs WHERE id = ?', id);
 }
 
 export async function getDoseLogsForProtocol(
@@ -807,6 +835,7 @@ export interface Reminder {
   notification_id: string | null;
   hour: number;
   minute: number;
+  weekday: number | null;  // 1=Sun..7=Sat (expo-notifications convention); null = daily
   is_enabled: number;
 }
 
@@ -828,11 +857,17 @@ export async function getAllEnabledReminders(): Promise<(Reminder & { peptide_na
   );
 }
 
-export async function createReminder(protocolId: number, hour: number, minute: number, notificationId: string | null): Promise<number> {
+export async function createReminder(
+  protocolId: number,
+  hour: number,
+  minute: number,
+  notificationId: string | null,
+  weekday: number | null = null,
+): Promise<number> {
   const db = await getDatabase();
   const result = await db.runAsync(
-    'INSERT INTO reminders (protocol_id, hour, minute, notification_id) VALUES (?, ?, ?, ?)',
-    protocolId, hour, minute, notificationId
+    'INSERT INTO reminders (protocol_id, hour, minute, notification_id, weekday) VALUES (?, ?, ?, ?, ?)',
+    protocolId, hour, minute, notificationId, weekday,
   );
   return result.lastInsertRowId;
 }

@@ -11,7 +11,20 @@ Notifications.setNotificationHandler({
   }),
 });
 
+const ANDROID_CHANNEL = 'dose-reminders';
+
+async function ensureAndroidChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL, {
+    name: 'Dose Reminders',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#6366f1',
+  });
+}
+
 export async function requestPermissions(): Promise<boolean> {
+  await ensureAndroidChannel();
   const { status: existing } = await Notifications.getPermissionsAsync();
   if (existing === 'granted') return true;
 
@@ -25,14 +38,45 @@ export async function scheduleDailyReminder(
   hour: number,
   minute: number,
 ): Promise<string> {
+  await ensureAndroidChannel();
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: `Time for ${peptideName}`,
       body: `${protocolName} — tap to log your dose`,
       sound: true,
+      ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL } : {}),
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour,
+      minute,
+    },
+  });
+  return id;
+}
+
+/**
+ * Schedule a weekly reminder. `weekday` uses expo-notifications convention:
+ * 1 = Sunday, 2 = Monday, ..., 7 = Saturday.
+ */
+export async function scheduleWeeklyReminder(
+  protocolName: string,
+  peptideName: string,
+  hour: number,
+  minute: number,
+  weekday: number,
+): Promise<string> {
+  await ensureAndroidChannel();
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `Time for ${peptideName}`,
+      body: `${protocolName} — tap to log your dose`,
+      sound: true,
+      ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL } : {}),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+      weekday,
       hour,
       minute,
     },

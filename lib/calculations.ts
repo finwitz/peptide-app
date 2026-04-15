@@ -196,3 +196,27 @@ export function formatMl(ml: number): string {
   if (ml >= 0.1) return ml.toFixed(3);
   return ml.toFixed(4);
 }
+
+/**
+ * Format a frequency in days as a human label.
+ * Handles all the common presets (daily, EOD, 3x/week, 2x/week, weekly, biweekly, monthly).
+ */
+export function formatFrequency(days: number): string {
+  if (days === 1) return 'Daily';
+  if (days === 2) return 'EOD';
+  if (Math.abs(days - 7 / 3) < 0.01) return '3x/week';
+  if (days === 3.5) return '2x/week';
+  if (days === 7) return 'Weekly';
+  if (days === 14) return 'Biweekly';
+  if (days === 30) return 'Monthly';
+  if (Number.isInteger(days)) return `Every ${days} days`;
+  return `Every ${days.toFixed(1)} days`;
+}
+
+/**
+ * Format a dose in mcg as mg or mcg depending on magnitude.
+ */
+export function formatDose(mcg: number): string {
+  if (mcg >= 1000) return `${(mcg / 1000).toFixed(mcg >= 10000 ? 1 : 2)} mg`;
+  return `${mcg} mcg`;
+}
