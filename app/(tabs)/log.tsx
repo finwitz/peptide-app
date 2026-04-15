@@ -10,11 +10,12 @@ import AnimatedPressable from '../../components/AnimatedPressable';
 import { useToast } from '../../components/Toast';
 import {
   getActiveProtocols, getRecentDoseLogs, getTodaysDoseCount,
-  getDoseLogsByDateRange, getDoseCountByDay,
+  getDoseLogsByDateRange, getDoseCountByDay, deleteDoseLog,
   type Protocol, type DoseLog,
 } from '../../lib/database';
 import { exportDoseLogsCSV, exportProtocolsJSON } from '../../lib/export';
-import AdherenceRing from '../../components/charts/AdherenceRing';
+import { useIsPremium } from '../../lib/PremiumContext';
+import PremiumGate from '../../components/PremiumGate';
 
 const SITE_LABELS: Record<string, string> = {
   abdomen_left: 'L Abdomen', abdomen_right: 'R Abdomen',
@@ -29,6 +30,7 @@ export default function LogScreen() {
   const colors = useThemeColors();
   const router = useRouter();
   const toast = useToast();
+  const isPremium = useIsPremium();
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [recentLogs, setRecentLogs] = useState<(DoseLog & { peptide_name: string })[]>([]);
   const [todayCount, setTodayCount] = useState(0);
@@ -86,12 +88,41 @@ export default function LogScreen() {
             totalDays: days,
           });
         } catch (e) {
-          // Silently handle — data will show on next focus
+          if (__DEV__) console.warn('[log] load failed', e);
         }
       }
       load();
     }, [period])
   );
+
+  const handleLogPress = (log: DoseLog & { peptide_name: string }) => {
+    Alert.alert(
+      log.peptide_name,
+      `${log.dose_mcg >= 1000 ? `${(log.dose_mcg / 1000).toFixed(2)} mg` : `${log.dose_mcg} mcg`} — ${new Date(log.logged_at).toLocaleString()}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoseLog(log.id);
+              toast.show({ message: 'Dose deleted', type: 'info' });
+              // Refresh
+              const { start, end } = getDateRange(period);
+              const logs = period === 'all'
+                ? await getRecentDoseLogs(100)
+                : await getDoseLogsByDateRange(start, end);
+              setRecentLogs(logs);
+              setTodayCount(await getTodaysDoseCount());
+            } catch {
+              toast.show({ message: 'Failed to delete', type: 'error' });
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleExport = async (type: 'csv' | 'json') => {
     setExporting(type);
@@ -179,12 +210,6 @@ export default function LogScreen() {
       {/* Period stats */}
       {period !== 'today' && periodStats.totalDoses > 0 && (
         <View style={styles.statsCard}>
-          <AdherenceRing
-            percentage={periodStats.totalDays > 0 ? Math.round((periodStats.activeDays / periodStats.totalDays) * 100) : 0}
-            size={60}
-            strokeWidth={6}
-            label="active days"
-          />
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{periodStats.totalDoses}</Text>
@@ -237,32 +262,40 @@ export default function LogScreen() {
           <Text style={styles.dateHeader}>{formatDateHeader(section.title)}</Text>
         )}
         ListFooterComponent={recentLogs.length > 0 ? (
-          <View style={styles.exportSection}>
-            <AnimatedPressable
-              style={[styles.exportBtn, exporting === 'csv' && { opacity: 0.5 }]}
-              onPress={() => handleExport('csv')}
-              disabled={exporting !== null}
-              haptic="light"
-              scaleDown={0.95}
-              accessibilityRole="button"
-              accessibilityLabel="Export dose logs as CSV"
-            >
-              <Ionicons name="download-outline" size={16} color={colors.primary} />
-              <Text style={styles.exportBtnText}>{exporting === 'csv' ? 'Exporting...' : 'Export CSV'}</Text>
-            </AnimatedPressable>
-            <AnimatedPressable
-              style={[styles.exportBtn, exporting === 'json' && { opacity: 0.5 }]}
-              onPress={() => handleExport('json')}
-              disabled={exporting !== null}
-              haptic="light"
-              scaleDown={0.95}
-              accessibilityRole="button"
-              accessibilityLabel="Export protocols as JSON"
-            >
-              <Ionicons name="code-download-outline" size={16} color={colors.primary} />
-              <Text style={styles.exportBtnText}>{exporting === 'json' ? 'Exporting...' : 'Export JSON'}</Text>
-            </AnimatedPressable>
-          </View>
+          isPremium ? (
+            <View style={styles.exportSection}>
+              <AnimatedPressable
+                style={[styles.exportBtn, exporting === 'csv' && { opacity: 0.5 }]}
+                onPress={() => handleExport('csv')}
+                disabled={exporting !== null}
+                haptic="light"
+                scaleDown={0.95}
+                accessibilityRole="button"
+                accessibilityLabel="Export dose logs as CSV"
+              >
+                <Ionicons name="download-outline" size={16} color={colors.primary} />
+                <Text style={styles.exportBtnText}>{exporting === 'csv' ? 'Exporting...' : 'Export CSV'}</Text>
+              </AnimatedPressable>
+              <AnimatedPressable
+                style={[styles.exportBtn, exporting === 'json' && { opacity: 0.5 }]}
+                onPress={() => handleExport('json')}
+                disabled={exporting !== null}
+                haptic="light"
+                scaleDown={0.95}
+                accessibilityRole="button"
+                accessibilityLabel="Export protocols as JSON"
+              >
+                <Ionicons name="code-download-outline" size={16} color={colors.primary} />
+                <Text style={styles.exportBtnText}>{exporting === 'json' ? 'Exporting...' : 'Export Backup'}</Text>
+              </AnimatedPressable>
+            </View>
+          ) : (
+            <View style={{ paddingTop: Spacing.lg }}>
+              <PremiumGate feature="Data export (CSV & JSON)" inline>
+                <View />
+              </PremiumGate>
+            </View>
+          )
         ) : null}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -281,7 +314,13 @@ export default function LogScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.logItem}>
+          <AnimatedPressable
+            style={styles.logItem}
+            onLongPress={() => handleLogPress(item)}
+            onPress={() => handleLogPress(item)}
+            haptic="light"
+            scaleDown={0.98}
+          >
             <View style={styles.logDot} />
             <View style={styles.logContent}>
               <View style={styles.logHeader}>
@@ -298,7 +337,7 @@ export default function LogScreen() {
               </View>
               {item.notes && <Text style={styles.logNotes}>{item.notes}</Text>}
             </View>
-          </View>
+          </AnimatedPressable>
         )}
       />
     </View>
@@ -332,13 +371,12 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     filterText: { fontSize: FontSize.sm, fontWeight: '600', color: colors.textSecondary },
     filterTextActive: { color: '#ffffff' },
     statsCard: {
-      flexDirection: 'row', alignItems: 'center', gap: Spacing.lg,
       backgroundColor: colors.card, borderRadius: BorderRadius.lg,
       borderWidth: 1, borderColor: colors.cardBorder,
       padding: Spacing.lg, marginBottom: Spacing.md,
       ...Shadows.sm,
     },
-    statsGrid: { flex: 1, flexDirection: 'row', gap: Spacing.md },
+    statsGrid: { flexDirection: 'row', gap: Spacing.md },
     statItem: { flex: 1 },
     statValue: { fontSize: FontSize.lg, fontWeight: '800', color: colors.text },
     statLabel: { fontSize: FontSize.xs, color: colors.textTertiary },

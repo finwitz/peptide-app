@@ -39,6 +39,23 @@ const SITE_SHORT: Record<string, string> = {
 
 const REST_DAYS = 7;
 
+function pad2(n: number): string {
+  return n.toString().padStart(2, '0');
+}
+
+function formatCustomDate(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function parseCustomDate(text: string): Date | null {
+  const m = text.trim().match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m;
+  const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi));
+  if (isNaN(date.getTime()) || date.getTime() > Date.now()) return null;
+  return date;
+}
+
 function getSiteStatus(site: InjectionSite): 'green' | 'yellow' | 'red' {
   if (!site.last_used) return 'green';
   const lastUsed = new Date(site.last_used);
@@ -80,11 +97,13 @@ export default function LogDoseScreen() {
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
   const [suggestedSite, setSuggestedSite] = useState<string | null>(null);
   const [doseOverride, setDoseOverride] = useState('');
+  const [doseUnit, setDoseUnit] = useState<'mcg' | 'mg'>('mcg');
   const [notes, setNotes] = useState('');
   const [sideEffects, setSideEffects] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [vials, setVials] = useState<InventoryItem[]>([]);
   const [selectedVial, setSelectedVial] = useState<number | null>(null);
+  const [loggedAt, setLoggedAt] = useState<Date>(new Date());
 
   useEffect(() => {
     async function load() {
@@ -103,6 +122,8 @@ export default function LogDoseScreen() {
         const inv = await getInventoryForPeptide(proto.peptide_name);
         setVials(inv);
         if (inv.length === 1) setSelectedVial(inv[0].id);
+        // Default dose unit to mg if protocol dose is large enough
+        if (proto.dose_mcg >= 1000) setDoseUnit('mg');
       }
     }
     load();
@@ -113,14 +134,28 @@ export default function LogDoseScreen() {
     setIsSaving(true);
 
     try {
-      const dose = doseOverride ? parseFloat(doseOverride) : protocol.dose_mcg;
-      if (isNaN(dose) || dose <= 0) {
-        Alert.alert('Error', 'Invalid dose value.');
-        setIsSaving(false);
-        return;
+      let dose: number;
+      if (doseOverride.trim()) {
+        const parsed = parseFloat(doseOverride);
+        if (isNaN(parsed) || parsed <= 0) {
+          Alert.alert('Error', 'Invalid dose value.');
+          setIsSaving(false);
+          return;
+        }
+        dose = doseUnit === 'mg' ? parsed * 1000 : parsed;
+      } else {
+        dose = protocol.dose_mcg;
       }
 
-      await logDose(protocol.id, dose, selectedSite ?? undefined, notes || undefined, sideEffects || undefined, selectedVial ?? undefined);
+      await logDose(
+        protocol.id,
+        dose,
+        selectedSite ?? undefined,
+        notes || undefined,
+        sideEffects || undefined,
+        selectedVial ?? undefined,
+        loggedAt.toISOString(),
+      );
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.show({ message: `${protocol.peptide_name} dose logged`, type: 'success' });
       router.back();
@@ -160,16 +195,75 @@ export default function LogDoseScreen() {
 
         {/* Dose */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Dose</Text>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTitle}>Dose</Text>
+            <View style={styles.unitToggle}>
+              {(['mcg', 'mg'] as const).map((u) => (
+                <TouchableOpacity
+                  key={u}
+                  style={[styles.unitBtn, doseUnit === u && styles.unitBtnActive]}
+                  onPress={() => setDoseUnit(u)}
+                >
+                  <Text style={[styles.unitBtnText, doseUnit === u && styles.unitBtnTextActive]}>{u}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
           <TextInput
             style={styles.input}
             value={doseOverride}
             onChangeText={setDoseOverride}
-            placeholder={`${protocol.dose_mcg} mcg (default)`}
+            placeholder={
+              doseUnit === 'mg'
+                ? `${(protocol.dose_mcg / 1000).toFixed(2)} mg (default)`
+                : `${protocol.dose_mcg} mcg (default)`
+            }
             placeholderTextColor={colors.textTertiary}
             keyboardType="decimal-pad"
           />
           <Text style={styles.helperText}>Leave blank to use default dose</Text>
+        </View>
+
+        {/* When */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>When</Text>
+          <View style={styles.whenDisplay}>
+            <Ionicons name="time-outline" size={16} color={colors.primary} />
+            <Text style={styles.whenText}>
+              {loggedAt.toLocaleString(undefined, {
+                weekday: 'short', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit',
+              })}
+            </Text>
+          </View>
+          <View style={styles.whenPresets}>
+            {([
+              { label: 'Now', offset: 0 },
+              { label: '1h ago', offset: -1 },
+              { label: '3h ago', offset: -3 },
+              { label: '6h ago', offset: -6 },
+              { label: '12h ago', offset: -12 },
+              { label: 'Yesterday', offset: -24 },
+            ] as const).map((preset) => (
+              <TouchableOpacity
+                key={preset.label}
+                style={styles.whenChip}
+                onPress={() => setLoggedAt(new Date(Date.now() + preset.offset * 60 * 60 * 1000))}
+              >
+                <Text style={styles.whenChipText}>{preset.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.helperText}>Or enter a custom date/time below (YYYY-MM-DD HH:MM)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder={formatCustomDate(new Date())}
+            placeholderTextColor={colors.textTertiary}
+            onChangeText={(text) => {
+              const parsed = parseCustomDate(text);
+              if (parsed) setLoggedAt(parsed);
+            }}
+          />
         </View>
 
         {/* Vial Selection */}
@@ -404,12 +498,34 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
       padding: Spacing.lg, marginBottom: Spacing.lg,
     },
     cardTitle: { fontSize: FontSize.lg, fontWeight: '700', color: colors.text, marginBottom: Spacing.md },
+    cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
+    unitToggle: { flexDirection: 'row', gap: 2 },
+    unitBtn: {
+      paddingHorizontal: Spacing.md, paddingVertical: 4,
+      borderRadius: BorderRadius.sm, backgroundColor: colors.surface,
+    },
+    unitBtnActive: { backgroundColor: colors.primary },
+    unitBtnText: { fontSize: FontSize.xs, color: colors.textSecondary, fontWeight: '700' },
+    unitBtnTextActive: { color: '#ffffff' },
+    whenDisplay: {
+      flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+      backgroundColor: colors.primaryLight, borderRadius: BorderRadius.md,
+      padding: Spacing.md, marginBottom: Spacing.md,
+    },
+    whenText: { fontSize: FontSize.md, fontWeight: '600', color: colors.primary },
+    whenPresets: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md },
+    whenChip: {
+      paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.full, backgroundColor: colors.surface,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    whenChipText: { fontSize: FontSize.sm, color: colors.text, fontWeight: '600' },
     input: {
       backgroundColor: colors.input, borderRadius: BorderRadius.md,
       borderWidth: 1, borderColor: colors.inputBorder,
       padding: Spacing.md, fontSize: FontSize.md, color: colors.text,
     },
-    helperText: { fontSize: FontSize.xs, color: colors.textTertiary, marginTop: Spacing.xs },
+    helperText: { fontSize: FontSize.xs, color: colors.textTertiary, marginTop: Spacing.xs, marginBottom: Spacing.xs },
     suggestedBanner: {
       flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
       backgroundColor: colors.successLight, borderRadius: BorderRadius.sm,
