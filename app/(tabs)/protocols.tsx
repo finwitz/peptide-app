@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
 import AnimatedPressable from '../../components/AnimatedPressable';
+import { formatFrequency, formatDose } from '../../lib/calculations';
 import {
   getActiveProtocols, getAllProtocols, deleteProtocol, getLastDoseForProtocol,
   getExpiringSoonInventory, getLowStockInventory,
@@ -35,7 +36,9 @@ export default function ProtocolsScreen() {
         getLowStockInventory(0.2),
       ]);
       setAlerts({ expiring, lowStock });
-    } catch (e) {}
+    } catch (e) {
+      if (__DEV__) console.warn('[protocols] load failed', e);
+    }
   }, [showAll]);
 
   useFocusEffect(useCallback(() => { loadProtocols(); }, [loadProtocols]));
@@ -80,16 +83,33 @@ export default function ProtocolsScreen() {
         >
           <Ionicons name={showAll ? 'list' : 'pulse'} size={14} color={colors.primary} />
           <Text style={styles.filterText}>{showAll ? 'All' : 'Active'}</Text>
-          <Ionicons name="chevron-down" size={14} color={colors.primary} />
         </AnimatedPressable>
 
         <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
           <AnimatedPressable
             style={styles.iconBtn}
+            onPress={() => router.push('/protocol/templates')}
+            haptic="light" scaleDown={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Browse protocol templates"
+          >
+            <Ionicons name="copy-outline" size={18} color={colors.primary} />
+          </AnimatedPressable>
+          <AnimatedPressable
+            style={styles.iconBtn}
             onPress={() => router.push('/inventory')}
             haptic="light" scaleDown={0.9}
+            accessibilityLabel="Inventory"
           >
             <Ionicons name="flask-outline" size={18} color={colors.accent} />
+          </AnimatedPressable>
+          <AnimatedPressable
+            style={styles.iconBtn}
+            onPress={() => router.push('/settings')}
+            haptic="light" scaleDown={0.9}
+            accessibilityLabel="Settings"
+          >
+            <Ionicons name="settings-outline" size={18} color={colors.textSecondary} />
           </AnimatedPressable>
           <AnimatedPressable
             style={styles.primaryBtn}
@@ -200,17 +220,10 @@ export default function ProtocolsScreen() {
 
                 <View style={styles.cardDetails}>
                   <View style={styles.detailChip}>
-                    <Text style={styles.detailChipText}>
-                      {item.dose_mcg >= 1000 ? `${(item.dose_mcg / 1000).toFixed(1)} mg` : `${item.dose_mcg} mcg`}
-                    </Text>
+                    <Text style={styles.detailChipText}>{formatDose(item.dose_mcg)}</Text>
                   </View>
                   <View style={styles.detailChip}>
-                    <Text style={styles.detailChipText}>
-                      {item.frequency_days === 1 ? 'Daily' :
-                       item.frequency_days === 7 ? 'Weekly' :
-                       item.frequency_days === 3.5 ? '2x/week' :
-                       `Every ${item.frequency_days}d`}
-                    </Text>
+                    <Text style={styles.detailChipText}>{formatFrequency(item.frequency_days)}</Text>
                   </View>
                   <View style={styles.detailChip}>
                     <Text style={styles.detailChipText}>{item.route}</Text>
