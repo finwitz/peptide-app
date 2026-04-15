@@ -11,13 +11,14 @@ import {
   getProtocolById, getDoseLogsForProtocol, updateProtocol, deleteProtocol,
   getPeptideByName, getProtocolDoseSummary, getActiveProtocols,
   getRemindersForProtocol, createReminder, deleteReminder as deleteReminderDB,
+  deleteDoseLog,
   type Protocol, type DoseLog, type Peptide, type Reminder,
 } from '../../lib/database';
-import { requestPermissions, scheduleDailyReminder, cancelReminder } from '../../lib/notifications';
+import { requestPermissions, scheduleDailyReminder, scheduleWeeklyReminder, cancelReminder } from '../../lib/notifications';
 import { checkNewProtocolInteractions } from '../../lib/interactionChecker';
 import type { PeptideInteraction } from '../../lib/interactions';
 import InteractionWarning from '../../components/InteractionWarning';
-import { calculateReconstitution, SYRINGE_TYPES, formatMl, formatSyringeUnits, type SyringeType } from '../../lib/calculations';
+import { calculateReconstitution, SYRINGE_TYPES, formatMl, formatSyringeUnits, formatFrequency, type SyringeType } from '../../lib/calculations';
 import { calculateAdherence, calculateStreak } from '../../lib/analytics';
 import DecayCurveChart from '../../components/charts/DecayCurveChart';
 import AdherenceRing from '../../components/charts/AdherenceRing';
@@ -29,6 +30,8 @@ const SITE_LABELS: Record<string, string> = {
   glute_left: 'L Glute', glute_right: 'R Glute',
 };
 
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; // 0-indexed for expo weekday 1..7
+
 export default function ProtocolDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useThemeColors();
@@ -39,6 +42,10 @@ export default function ProtocolDetailScreen() {
   const [summary, setSummary] = useState<{ total_doses: number; first_dose: string | null; last_dose: string | null }>({ total_doses: 0, first_dose: null, last_dose: null });
   const [interactions, setInteractions] = useState<PeptideInteraction[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
+  const [pickerHour, setPickerHour] = useState(9);
+  const [pickerMinute, setPickerMinute] = useState(0);
+  const [pickerWeekday, setPickerWeekday] = useState<number | null>(null);
   const toast = useToast();
 
   useFocusEffect(
@@ -102,22 +109,59 @@ export default function ProtocolDetailScreen() {
     ]);
   };
 
-  const handleAddReminder = async () => {
+  const handleDeleteLog = (log: DoseLog) => {
+    Alert.alert(
+      'Delete Dose',
+      `Delete this ${log.dose_mcg >= 1000 ? `${(log.dose_mcg / 1000).toFixed(2)} mg` : `${log.dose_mcg} mcg`} entry from ${new Date(log.logged_at).toLocaleString()}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoseLog(log.id);
+              setLogs((prev) => prev.filter((l) => l.id !== log.id));
+              toast.show({ message: 'Dose deleted', type: 'info' });
+            } catch {
+              toast.show({ message: 'Failed to delete', type: 'error' });
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openReminderPicker = () => {
+    // Pre-pick "weekly" if protocol is ~weekly
+    if (protocol && protocol.frequency_days >= 6.5) {
+      setPickerWeekday(2); // Monday default
+    } else {
+      setPickerWeekday(null);
+    }
+    setPickerHour(9);
+    setPickerMinute(0);
+    setReminderPickerOpen(true);
+  };
+
+  const confirmReminder = async () => {
+    if (!protocol) return;
     try {
       const granted = await requestPermissions();
       if (!granted) {
         Alert.alert('Permissions Required', 'Please enable notifications in Settings to set reminders.');
         return;
       }
-      // Default to 9:00 AM
-      const hour = 9;
-      const minute = 0;
-      const notifId = await scheduleDailyReminder(protocol.name, protocol.peptide_name, hour, minute);
-      await createReminder(protocol.id, hour, minute, notifId);
+      const notifId = pickerWeekday != null
+        ? await scheduleWeeklyReminder(protocol.name, protocol.peptide_name, pickerHour, pickerMinute, pickerWeekday)
+        : await scheduleDailyReminder(protocol.name, protocol.peptide_name, pickerHour, pickerMinute);
+      await createReminder(protocol.id, pickerHour, pickerMinute, notifId, pickerWeekday);
       const rems = await getRemindersForProtocol(protocol.id);
       setReminders(rems);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      toast.show({ message: 'Daily reminder set for 9:00 AM', type: 'success' });
+      const timeStr = formatTime(pickerHour, pickerMinute);
+      const freqStr = pickerWeekday != null ? `${WEEKDAY_LABELS[pickerWeekday - 1]} at ${timeStr}` : `Daily at ${timeStr}`;
+      toast.show({ message: `Reminder set for ${freqStr}`, type: 'success' });
+      setReminderPickerOpen(false);
     } catch (e) {
       toast.show({ message: 'Failed to create reminder', type: 'error' });
     }
@@ -183,11 +227,7 @@ export default function ProtocolDetailScreen() {
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Frequency</Text>
-          <Text style={styles.detailValue}>
-            {protocol.frequency_days === 1 ? 'Daily' :
-             protocol.frequency_days === 7 ? 'Weekly' :
-             `Every ${protocol.frequency_days} days`}
-          </Text>
+          <Text style={styles.detailValue}>{formatFrequency(protocol.frequency_days)}</Text>
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Route</Text>
@@ -295,7 +335,7 @@ export default function ProtocolDetailScreen() {
           <View style={styles.reminderHeader}>
             <Text style={styles.cardTitle}>Reminders</Text>
             <TouchableOpacity
-              onPress={handleAddReminder}
+              onPress={openReminderPicker}
               accessibilityRole="button"
               accessibilityLabel="Add reminder"
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -310,7 +350,9 @@ export default function ProtocolDetailScreen() {
               <View key={rem.id} style={styles.reminderItem}>
                 <Ionicons name="notifications-outline" size={18} color={colors.accent} />
                 <Text style={styles.reminderTime}>{formatTime(rem.hour, rem.minute)}</Text>
-                <Text style={styles.reminderLabel}>Daily</Text>
+                <Text style={styles.reminderLabel}>
+                  {rem.weekday != null ? WEEKDAY_LABELS[rem.weekday - 1] : 'Daily'}
+                </Text>
                 <TouchableOpacity
                   onPress={() => handleDeleteReminder(rem)}
                   accessibilityRole="button"
@@ -321,6 +363,81 @@ export default function ProtocolDetailScreen() {
                 </TouchableOpacity>
               </View>
             ))
+          )}
+
+          {reminderPickerOpen && (
+            <View style={styles.reminderPicker}>
+              <Text style={styles.pickerLabel}>Hour</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                  <TouchableOpacity
+                    key={h}
+                    style={[styles.pickerChip, pickerHour === h && styles.pickerChipActive]}
+                    onPress={() => setPickerHour(h)}
+                  >
+                    <Text style={[styles.pickerChipText, pickerHour === h && styles.pickerChipTextActive]}>
+                      {h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text style={styles.pickerLabel}>Minute</Text>
+              <View style={styles.pickerRow}>
+                {[0, 15, 30, 45].map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.pickerChip, pickerMinute === m && styles.pickerChipActive]}
+                    onPress={() => setPickerMinute(m)}
+                  >
+                    <Text style={[styles.pickerChipText, pickerMinute === m && styles.pickerChipTextActive]}>
+                      :{m.toString().padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.pickerLabel}>Repeat</Text>
+              <View style={styles.pickerRow}>
+                <TouchableOpacity
+                  style={[styles.pickerChip, pickerWeekday == null && styles.pickerChipActive]}
+                  onPress={() => setPickerWeekday(null)}
+                >
+                  <Text style={[styles.pickerChipText, pickerWeekday == null && styles.pickerChipTextActive]}>
+                    Daily
+                  </Text>
+                </TouchableOpacity>
+                {WEEKDAY_LABELS.map((label, idx) => {
+                  const wd = idx + 1; // 1..7
+                  return (
+                    <TouchableOpacity
+                      key={wd}
+                      style={[styles.pickerChip, pickerWeekday === wd && styles.pickerChipActive]}
+                      onPress={() => setPickerWeekday(wd)}
+                    >
+                      <Text style={[styles.pickerChipText, pickerWeekday === wd && styles.pickerChipTextActive]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.pickerActions}>
+                <TouchableOpacity
+                  style={styles.pickerCancel}
+                  onPress={() => setReminderPickerOpen(false)}
+                >
+                  <Text style={styles.pickerCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.pickerConfirm}
+                  onPress={confirmReminder}
+                >
+                  <Text style={styles.pickerConfirmText}>Set Reminder</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
         </View>
       )}
@@ -340,7 +457,12 @@ export default function ProtocolDetailScreen() {
           <Text style={styles.emptyText}>No doses logged yet.</Text>
         ) : (
           logs.map((log) => (
-            <View key={log.id} style={styles.logItem}>
+            <TouchableOpacity
+              key={log.id}
+              style={styles.logItem}
+              onLongPress={() => handleDeleteLog(log)}
+              accessibilityLabel="Long-press to delete"
+            >
               <View style={styles.logDot} />
               <View style={{ flex: 1 }}>
                 <View style={styles.logHeader}>
@@ -354,7 +476,7 @@ export default function ProtocolDetailScreen() {
                 )}
                 {log.notes && <Text style={styles.logNotes}>{log.notes}</Text>}
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
@@ -423,6 +545,37 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     reminderTime: { fontSize: FontSize.md, fontWeight: '700', color: colors.text, flex: 1 },
     reminderLabel: { fontSize: FontSize.xs, color: colors.textTertiary },
+    reminderPicker: {
+      marginTop: Spacing.md, paddingTop: Spacing.md,
+      borderTopWidth: 1, borderTopColor: colors.border,
+    },
+    pickerLabel: {
+      fontSize: FontSize.xs, fontWeight: '700', color: colors.textTertiary,
+      textTransform: 'uppercase', letterSpacing: 0.5,
+      marginTop: Spacing.md, marginBottom: Spacing.sm,
+    },
+    pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    pickerChip: {
+      paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.full, backgroundColor: colors.surface,
+      borderWidth: 1, borderColor: colors.border,
+      marginRight: Spacing.sm, marginBottom: Spacing.sm,
+      minWidth: 44, alignItems: 'center',
+    },
+    pickerChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    pickerChipText: { fontSize: FontSize.sm, color: colors.text, fontWeight: '600' },
+    pickerChipTextActive: { color: '#ffffff' },
+    pickerActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+    pickerCancel: {
+      flex: 1, paddingVertical: Spacing.md, borderRadius: BorderRadius.md,
+      backgroundColor: colors.surface, alignItems: 'center',
+    },
+    pickerCancelText: { fontSize: FontSize.sm, color: colors.textSecondary, fontWeight: '600' },
+    pickerConfirm: {
+      flex: 2, paddingVertical: Spacing.md, borderRadius: BorderRadius.md,
+      backgroundColor: colors.primary, alignItems: 'center',
+    },
+    pickerConfirmText: { fontSize: FontSize.sm, color: '#ffffff', fontWeight: '700' },
     logBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
       backgroundColor: colors.primary, borderRadius: BorderRadius.lg,
