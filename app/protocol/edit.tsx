@@ -21,7 +21,7 @@ const FREQUENCY_PRESETS = [
   { label: 'Monthly', days: 30 },
 ];
 
-const ROUTE_OPTIONS = ['SubQ', 'IM', 'Nasal', 'Oral', 'IV', 'Topical'];
+const ROUTE_OPTIONS = ['SubQ', 'IM', 'Nasal', 'Oral', 'IV'];
 
 export default function EditProtocolScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,6 +40,7 @@ export default function EditProtocolScreen() {
   const [syringeType, setSyringeType] = useState<SyringeType>('U100');
   const [route, setRoute] = useState('SubQ');
   const [notes, setNotes] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function EditProtocolScreen() {
       if (!isPreset) setCustomFrequency(proto.frequency_days.toString());
       setRoute(proto.route);
       setNotes(proto.notes ?? '');
+      setEndDate(proto.end_date ?? '');
       if (proto.vial_mg) setVialMg(proto.vial_mg.toString());
       if (proto.water_ml) setWaterMl(proto.water_ml.toString());
       setSyringeType((proto.syringe_type as SyringeType) || 'U100');
@@ -82,6 +84,15 @@ export default function EditProtocolScreen() {
       return;
     }
 
+    let parsedEnd: string | null = null;
+    if (endDate.trim()) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate.trim())) {
+        Alert.alert('Error', 'End date must be in YYYY-MM-DD format.');
+        return;
+      }
+      parsedEnd = endDate.trim();
+    }
+
     setIsSaving(true);
     try {
       await updateProtocol(protocol.id, {
@@ -93,6 +104,7 @@ export default function EditProtocolScreen() {
         syringe_type: syringeType,
         route,
         notes: notes || null,
+        end_date: parsedEnd,
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -250,6 +262,28 @@ export default function EditProtocolScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+        </View>
+
+        {/* End Date */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>End Date (Optional)</Text>
+          <TextInput
+            style={styles.input}
+            value={endDate}
+            onChangeText={setEndDate}
+            placeholder="YYYY-MM-DD (leave blank for ongoing)"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {endDate ? (
+            <TouchableOpacity
+              style={{ alignSelf: 'flex-start', marginTop: Spacing.sm }}
+              onPress={() => setEndDate('')}
+            >
+              <Text style={{ color: colors.primary, fontSize: FontSize.sm, fontWeight: '600' }}>Clear end date</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Notes */}

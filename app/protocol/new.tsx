@@ -3,16 +3,17 @@ import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
 import { useToast } from '../../components/Toast';
-import { createProtocol, getAllPeptides, getActiveProtocols, type Peptide, type Protocol } from '../../lib/database';
+import { createProtocol, getAllPeptides, getActiveProtocols, getAllProtocols, type Peptide, type Protocol } from '../../lib/database';
 import { SYRINGE_TYPES, type SyringeType } from '../../lib/calculations';
 import { checkNewProtocolInteractions } from '../../lib/interactionChecker';
 import type { PeptideInteraction } from '../../lib/interactions';
 import InteractionWarning from '../../components/InteractionWarning';
+import { usePremium } from '../../lib/PremiumContext';
 
 const FREQUENCY_PRESETS = [
   { label: 'Daily', days: 1 },
@@ -24,12 +25,28 @@ const FREQUENCY_PRESETS = [
   { label: 'Monthly', days: 30 },
 ];
 
-const ROUTE_OPTIONS = ['SubQ', 'IM', 'Nasal', 'Oral', 'IV', 'Topical'];
+const ROUTE_OPTIONS = ['SubQ', 'IM', 'Nasal', 'Oral', 'IV'];
 
 export default function NewProtocolScreen() {
   const colors = useThemeColors();
   const router = useRouter();
   const toast = useToast();
+  const { isPremium, limits } = usePremium();
+  const {
+    peptideId,
+    prefillVialMg,
+    prefillWaterMl,
+    prefillDose,
+    prefillDoseUnit,
+    prefillSyringe,
+  } = useLocalSearchParams<{
+    peptideId?: string;
+    prefillVialMg?: string;
+    prefillWaterMl?: string;
+    prefillDose?: string;
+    prefillDoseUnit?: 'mcg' | 'mg';
+    prefillSyringe?: SyringeType;
+  }>();
 
   const [peptides, setPeptides] = useState<Peptide[]>([]);
   const [selectedPeptide, setSelectedPeptide] = useState<Peptide | null>(null);
@@ -47,14 +64,47 @@ export default function NewProtocolScreen() {
   const [syringeType, setSyringeType] = useState<SyringeType>('U100');
   const [route, setRoute] = useState('SubQ');
   const [notes, setNotes] = useState('');
+  const [endDate, setEndDate] = useState('');  // YYYY-MM-DD
   const [activeProtos, setActiveProtos] = useState<Protocol[]>([]);
   const [warnings, setWarnings] = useState<PeptideInteraction[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    getAllPeptides().then(setPeptides);
+    // Calculator hand-off prefills
+    if (prefillVialMg) setVialMg(prefillVialMg);
+    if (prefillWaterMl) setWaterMl(prefillWaterMl);
+    if (prefillDose) setDoseMcg(prefillDose);
+    if (prefillDoseUnit) setDoseUnit(prefillDoseUnit);
+    if (prefillSyringe) setSyringeType(prefillSyringe);
+
+    getAllPeptides().then((all) => {
+      setPeptides(all);
+      // Pre-select if we were routed from the library with a peptideId
+      if (peptideId) {
+        const found = all.find((p) => p.id === parseInt(peptideId, 10));
+        if (found) {
+          setSelectedPeptide(found);
+          setName(`${found.name} Protocol`);
+          if (found.typical_dose_mcg_low) {
+            const dose = found.typical_dose_mcg_low;
+            if (dose >= 1000) {
+              setDoseUnit('mg');
+              setDoseMcg((dose / 1000).toString());
+            } else {
+              setDoseUnit('mcg');
+              setDoseMcg(dose.toString());
+            }
+          }
+          if (found.frequency) {
+            const preset = FREQUENCY_PRESETS.find((f) => f.label === found.frequency);
+            if (preset) setFrequencyDays(preset.days);
+          }
+          if (found.route) setRoute(found.route);
+        }
+      }
+    });
     getActiveProtocols().then(setActiveProtos);
-  }, []);
+  }, [peptideId]);
 
   const filteredPeptides = peptideQuery
     ? peptides.filter((p) =>
@@ -90,6 +140,21 @@ export default function NewProtocolScreen() {
 
   const handleSave = async () => {
     if (isSaving) return;
+    // Free tier cap
+    if (!isPremium) {
+      const all = await getAllProtocols();
+      if (all.length >= limits.maxProtocols) {
+        Alert.alert(
+          'Free Tier Limit',
+          `Free accounts are limited to ${limits.maxProtocols} protocols. Upgrade to PeptideCalc Pro for unlimited protocols.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'View Plans', onPress: () => router.replace('/paywall') },
+          ]
+        );
+        return;
+      }
+    }
     const peptideName = selectedPeptide?.name || customPeptideName;
     if (!peptideName.trim()) {
       Alert.alert('Error', 'Please select or enter a peptide name.');
@@ -111,6 +176,16 @@ export default function NewProtocolScreen() {
 
     setIsSaving(true);
     try {
+      // Validate end date if provided
+      let parsedEnd: string | null = null;
+      if (endDate.trim()) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate.trim())) {
+          Alert.alert('Error', 'End date must be in YYYY-MM-DD format.');
+          return;
+        }
+        parsedEnd = endDate.trim();
+      }
+
       await createProtocol({
         name: name || `${peptideName} Protocol`,
         peptide_id: selectedPeptide?.id ?? null,
@@ -123,7 +198,7 @@ export default function NewProtocolScreen() {
         route,
         notes: notes || null,
         start_date: new Date().toISOString().split('T')[0],
-        end_date: null,
+        end_date: parsedEnd,
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -331,6 +406,42 @@ export default function NewProtocolScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+        </View>
+
+        {/* End Date */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>End Date (Optional)</Text>
+          <Text style={styles.helperText}>For fixed cycles — leave blank for an ongoing protocol.</Text>
+          <TextInput
+            style={styles.input}
+            value={endDate}
+            onChangeText={setEndDate}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <View style={styles.freqScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {[
+                { label: '4 weeks', weeks: 4 },
+                { label: '8 weeks', weeks: 8 },
+                { label: '12 weeks', weeks: 12 },
+                { label: '16 weeks', weeks: 16 },
+              ].map((preset) => (
+                <TouchableOpacity
+                  key={preset.label}
+                  style={styles.freqChip}
+                  onPress={() => {
+                    const d = new Date(Date.now() + preset.weeks * 7 * 86400000);
+                    setEndDate(d.toISOString().split('T')[0]);
+                  }}
+                >
+                  <Text style={styles.freqChipText}>+{preset.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </View>
 
         {/* Notes */}

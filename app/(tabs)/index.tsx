@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors, Spacing, FontSize, BorderRadius, Shadows } from '../../constants/theme';
 import AnimatedPressable from '../../components/AnimatedPressable';
@@ -14,6 +15,7 @@ const SYRINGE_OPTIONS: SyringeType[] = ['U100', 'U50', 'U40', 'U30', 'U20', 'tub
 
 export default function CalculatorScreen() {
   const colors = useThemeColors();
+  const router = useRouter();
   const [vialMg, setVialMg] = useState('');
   const [waterMl, setWaterMl] = useState('');
   const [doseMcg, setDoseMcg] = useState('');
@@ -204,6 +206,26 @@ export default function CalculatorScreen() {
                 </Text>
               </View>
             </View>
+
+            <AnimatedPressable
+              style={styles.saveProtocolBtn}
+              onPress={() => router.push({
+                pathname: '/protocol/new',
+                params: {
+                  prefillVialMg: vialMg,
+                  prefillWaterMl: waterMl,
+                  prefillDose: doseMcg,
+                  prefillDoseUnit: doseUnit,
+                  prefillSyringe: syringeType,
+                },
+              })}
+              haptic="light"
+              scaleDown={0.97}
+            >
+              <Ionicons name="bookmark-outline" size={16} color={colors.primary} />
+              <Text style={styles.saveProtocolText}>Save as Protocol</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+            </AnimatedPressable>
           </View>
         )}
 
@@ -332,6 +354,12 @@ function makeStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     resultMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     resultMetaText: { fontSize: FontSize.sm, color: colors.textSecondary },
+    saveProtocolBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+      backgroundColor: colors.primaryLight, borderRadius: BorderRadius.md,
+      padding: Spacing.md, marginTop: Spacing.lg,
+    },
+    saveProtocolText: { fontSize: FontSize.sm, color: colors.primary, fontWeight: '700' },
     // Warning
     warningBanner: {
       flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
