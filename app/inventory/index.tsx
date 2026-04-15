@@ -15,22 +15,29 @@ export default function InventoryScreen() {
   const router = useRouter();
   const [items, setItems] = useState<InventoryItem[]>([]);
 
-  useFocusEffect(
-    useCallback(() => {
-      getActiveInventory().then(setItems).catch(() => {});
-    }, [])
-  );
+  const refresh = useCallback(() => {
+    getActiveInventory().then(setItems).catch(() => {});
+  }, []);
 
-  const markEmpty = (item: InventoryItem) => {
-    Alert.alert('Mark as Empty', `Mark ${item.peptide_name} vial as empty?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Mark Empty', onPress: async () => {
-          await updateInventoryItem(item.id, { status: 'empty' });
-          getActiveInventory().then(setItems);
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+
+  const showActions = (item: InventoryItem) => {
+    Alert.alert(
+      item.peptide_name,
+      `${item.mg_remaining.toFixed(2)} / ${item.vial_mg} mg remaining`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Edit', onPress: () => router.push({ pathname: '/inventory/edit', params: { id: item.id.toString() } }) },
+        {
+          text: 'Mark Empty',
+          style: 'destructive',
+          onPress: async () => {
+            await updateInventoryItem(item.id, { status: 'empty' });
+            refresh();
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const daysUntilExpiry = (date: string | null) => {
@@ -78,7 +85,12 @@ export default function InventoryScreen() {
           const stockColor = getStockColor(item);
 
           return (
-            <TouchableOpacity style={styles.card} onLongPress={() => markEmpty(item)}>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => showActions(item)}
+              onLongPress={() => showActions(item)}
+              accessibilityLabel={`${item.peptide_name} vial actions`}
+            >
               <View style={styles.cardTop}>
                 <Text style={styles.peptideName}>{item.peptide_name}</Text>
                 {expDays !== null && expDays <= 7 && (

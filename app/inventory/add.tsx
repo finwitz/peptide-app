@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator,
+  View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +24,11 @@ export default function AddInventoryScreen() {
 
   const [vialMg, setVialMg] = useState('');
   const [bacWaterMl, setBacWaterMl] = useState('');
-  const [expirationDays, setExpirationDays] = useState('30');
+  const [reconstitutionDate, setReconstitutionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expirationDate, setExpirationDate] = useState(() => {
+    const d = new Date(Date.now() + 30 * 86400000);
+    return d.toISOString().split('T')[0];
+  });
   const [source, setSource] = useState('');
   const [lotNumber, setLotNumber] = useState('');
   const [notes, setNotes] = useState('');
@@ -57,20 +61,27 @@ export default function AddInventoryScreen() {
     if (!peptideQuery.trim() || isNaN(mg) || mg <= 0) return;
     if (isSaving) return;
 
+    // Basic YYYY-MM-DD validation
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (reconstitutionDate && !dateRegex.test(reconstitutionDate)) {
+      Alert.alert('Error', 'Reconstitution date must be in YYYY-MM-DD format.');
+      return;
+    }
+    if (expirationDate && !dateRegex.test(expirationDate)) {
+      Alert.alert('Error', 'Expiration date must be in YYYY-MM-DD format.');
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const now = new Date().toISOString().split('T')[0];
-      const expDays = parseInt(expirationDays) || 30;
-      const expDate = new Date(Date.now() + expDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
       await createInventoryItem({
         peptide_name: peptideQuery.trim(),
         peptide_id: selectedPeptide?.id ?? null,
         vial_mg: mg,
         mg_remaining: mg,
         bac_water_ml: bacWaterMl ? parseFloat(bacWaterMl) : null,
-        reconstitution_date: now,
-        expiration_date: expDate,
+        reconstitution_date: reconstitutionDate || null,
+        expiration_date: expirationDate || null,
         source: source.trim() || null,
         lot_number: lotNumber.trim() || null,
         notes: notes.trim() || null,
@@ -140,15 +151,28 @@ export default function AddInventoryScreen() {
         onChangeText={setBacWaterMl}
       />
 
-      {/* Expiration */}
-      <Text style={styles.label}>Days Until Expiration</Text>
+      {/* Reconstitution Date */}
+      <Text style={styles.label}>Reconstitution Date</Text>
       <TextInput
         style={styles.input}
-        placeholder="30"
+        placeholder="YYYY-MM-DD"
         placeholderTextColor={colors.textTertiary}
-        keyboardType="number-pad"
-        value={expirationDays}
-        onChangeText={setExpirationDays}
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={reconstitutionDate}
+        onChangeText={setReconstitutionDate}
+      />
+
+      {/* Expiration Date */}
+      <Text style={styles.label}>Expiration Date</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="YYYY-MM-DD"
+        placeholderTextColor={colors.textTertiary}
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={expirationDate}
+        onChangeText={setExpirationDate}
       />
 
       {/* Source */}
